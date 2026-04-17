@@ -5,7 +5,8 @@ import { resolve } from 'path';
 
 dotenv.config({ path: resolve(process.cwd(), '.env') });
 
-const url = process.env.TURSO_DATABASE_URL || 'file:./local.db';
+const localDbPath = resolve(process.cwd(), 'local.db').replace(/\\/g, '/');
+const url = process.env.TURSO_DATABASE_URL || `file:${localDbPath}`;
 const authToken = process.env.TURSO_AUTH_TOKEN;
 
 const db = createClient({ url, authToken });
