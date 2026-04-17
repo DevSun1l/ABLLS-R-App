@@ -25,6 +25,17 @@ export default async function handler(req, res) {
            sql: "INSERT INTO students (id, org_id, created_by, name, age_years, age_months, diagnoses, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
            args: [id, decoded.org_id, decoded.id, name, ageYears, ageMonths, JSON.stringify(diagnoses), notes]
         });
+        
+        // Log the action
+        await db.execute({
+           sql: "INSERT INTO activity_logs (user_id, action, details, timestamp) VALUES (?, ?, ?, ?)",
+           args: [
+              decoded.id, 
+              'student_created', 
+              JSON.stringify({ student_id: id, student_name: name, org_id: decoded.org_id }), 
+              new Date().toISOString()
+           ]
+        });
      }
      
      return res.status(200).json({ success: true, studentId: id });

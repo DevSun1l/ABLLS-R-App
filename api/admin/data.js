@@ -21,8 +21,8 @@ export default async function handler(req, res) {
       const studentsResult = await db.execute("SELECT id, name, age_years, age_months, org_id, created_at FROM students");
       const assessmentsResult = await db.execute("SELECT id, student_id, assessor_id, date, domain_data, status, created_at FROM assessments");
       
-      // Fetch login logs for the user activity log management
-      const loginLogsResult = await db.execute("SELECT * FROM activity_logs WHERE action = 'login' ORDER BY timestamp DESC");
+      // Fetch all logs for the system-wide activity redesigned tab
+      const loginLogsResult = await db.execute("SELECT * FROM activity_logs ORDER BY timestamp DESC");
      
       return res.status(200).json({ 
          users: usersResult.rows,

@@ -12,6 +12,7 @@ const AdminLayout = ({ children, activeTab, setActiveTab }) => {
     { title: 'User Access', icon: 'groups', tab: 'users', path: '/admin' },
     { title: 'Goal Library', icon: 'library_books', tab: 'goals', path: '/admin/goals' },
     { title: 'Organizations', icon: 'corporate_fare', tab: 'organizations', path: '/admin' },
+    { title: 'Recent Activity', icon: 'history', tab: 'activity', path: '/admin' },
     { title: 'Feedback Portal', icon: 'forum', tab: 'feedback', path: '/admin' },
     { title: 'Data & Backups', icon: 'analytics', tab: 'data', path: '/admin' },
   ];

@@ -117,6 +117,86 @@ const AdminDashboard = () => {
         }
     };
 
+    const handleRemoveStudent = async (studentId) => {
+        if (!window.confirm('Are you sure you want to remove this student? All assessment data will be permanently purged.')) return;
+        setProcessing(true);
+        try {
+            const token = sessionStorage.getItem('ablls_token');
+            const res = await fetch('/api/students/delete', {
+                method: 'DELETE',
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ studentId })
+            });
+            if (res.ok) fetchAdminData();
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    const getActivityInfo = (log) => {
+        const user = (data.users || []).find(u => u.id === log.user_id) || { first_name: 'Unknown', last_name: 'User' };
+        let details = {};
+        try {
+            details = typeof log.details === 'string' ? JSON.parse(log.details) : (log.details || {});
+        } catch (e) {
+            console.warn("Details parse error:", e);
+        }
+
+        const nameNode = <span className="font-black text-on-surface">{user.first_name} {user.last_name}</span>;
+        
+        switch (log.action) {
+            case 'login':
+                return {
+                    icon: 'login',
+                    color: 'bg-primary',
+                    title: 'System Authentication',
+                    text: <>{nameNode} successfully logged into the clinical node.</>
+                };
+            case 'student_created':
+                return {
+                    icon: 'person_add',
+                    color: 'bg-success',
+                    title: 'Student Enrollment',
+                    text: <>{nameNode} enrolled a new student: <span className="font-bold text-success">"{details.student_name || 'Individual'}"</span></>
+                };
+            case 'student_deleted':
+                return {
+                    icon: 'person_remove',
+                    color: 'bg-error',
+                    title: 'Student Removal',
+                    text: <>{nameNode} removed student <span className="font-bold text-error">"{details.student_name || 'Individual'}"</span> from the system.</>
+                };
+            case 'assessment_created':
+                const studentId = details.student_id;
+                const student = (data.students || []).find(s => s.id === studentId) || { name: 'Unknown Student' };
+                return {
+                    icon: 'assignment_turned_in',
+                    color: 'bg-tertiary',
+                    title: 'Clinical Assessment',
+                    text: <>{nameNode} completed a new evaluation for student <span className="font-bold text-tertiary">"{student.name}"</span></>
+                };
+            case 'feedback_submitted':
+                return {
+                    icon: 'rate_review',
+                    color: 'bg-secondary',
+                    title: 'Feedback Capture',
+                    text: <>{nameNode} submitted a system feedback capture.</>
+                };
+            default:
+                return {
+                    icon: 'history',
+                    color: 'bg-outline',
+                    title: 'System Event',
+                    text: <>{nameNode} performed an action: {log.action}</>
+                };
+        }
+    };
+
     const handleToggleBlock = async (userToUpdate) => {
         const newStatus = userToUpdate.status === 'blocked' ? 'active' : 'blocked';
         setProcessing(true);
@@ -145,7 +225,10 @@ const AdminDashboard = () => {
     };
 
     const formatTimestamp = (date) => {
-        return new Date(date).toLocaleString('en-US', { 
+        if (!date) return '...';
+        const d = new Date(String(date).replace(' ', 'T'));
+        if (isNaN(d.getTime())) return 'Now';
+        return d.toLocaleString('en-US', { 
             month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
         });
     };
@@ -431,27 +514,30 @@ const AdminDashboard = () => {
                                         </span>
                                     </div>
                                     <div className="space-y-5 overflow-y-auto pr-1 flex-1 pb-4" style={{ scrollbarWidth: 'thin' }}>
-                                        {activityFeed.length === 0 ? (
+                                        {data.loginLogs.length === 0 ? (
                                             <div className="text-center py-16 text-on-surface-variant/40 italic text-sm">No recent system logs</div>
-                                        ) : activityFeed.slice(0, 20).map(item => (
-                                            <div key={item.id} className="flex gap-3 group/activity">
-                                                <div className="shrink-0">
-                                                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-on-primary ${item.color} shadow-sm group-hover/activity:scale-110 transition-transform`}>
-                                                        <span className="material-symbols-outlined text-sm">{item.icon}</span>
+                                        ) : data.loginLogs.slice(0, 15).map(log => {
+                                            const info = getActivityInfo(log);
+                                            return (
+                                                <div key={log.id} className="flex gap-3 group/activity animate-in fade-in duration-300">
+                                                    <div className="shrink-0">
+                                                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-on-primary ${info.color} shadow-sm group-hover/activity:scale-110 transition-transform`}>
+                                                            <span className="material-symbols-outlined text-sm">{info.icon}</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex-1 border-b border-outline-variant/10 pb-4 min-w-0">
+                                                        <div className="text-sm font-medium text-on-surface leading-snug">
+                                                            {info.text}
+                                                        </div>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <span className="text-[10px] font-bold text-primary uppercase tracking-widest opacity-60 italic">{timeAgo(log.timestamp)}</span>
+                                                            <span className="w-1 h-1 bg-outline rounded-full opacity-20"></span>
+                                                            <span className="text-[10px] text-on-surface-variant font-medium opacity-50 truncate uppercase">{formatTimestamp(log.timestamp)}</span>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                <div className="flex-1 border-b border-outline-variant/10 pb-4 min-w-0">
-                                                    <p className="text-sm font-medium text-on-surface leading-snug">
-                                                        {item.text}
-                                                    </p>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <span className="text-[10px] font-bold text-primary uppercase tracking-widest opacity-60">{timeAgo(item.date)}</span>
-                                                        <span className="w-1 h-1 bg-outline rounded-full opacity-20"></span>
-                                                        <span className="text-[10px] text-on-surface-variant font-medium opacity-50 truncate">{formatTimestamp(item.date)}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                     <div className="pt-4 border-t border-outline-variant/10">
                                         <div className="p-4 bg-primary text-on-primary rounded-lg shadow-lg shadow-primary/20 relative overflow-hidden">
@@ -710,27 +796,64 @@ const AdminDashboard = () => {
                                         <p className="text-[10px] text-on-surface-variant font-medium opacity-60 mt-1 uppercase">Performances</p>
                                     </div>
                                 </div>
-                                <div className="space-y-4">
-                                    <h4 className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest px-2">Access History (Recent Logins)</h4>
-                                    <div className="bg-surface-container-low rounded-2xl border border-outline-variant/10 h-48 overflow-y-auto">
-                                        {(data.loginLogs || []).filter(l => l.user_id === selectedUser.id).length === 0 ? (
-                                            <div className="h-full flex items-center justify-center text-on-surface-variant/40 italic text-xs">No login records found</div>
-                                        ) : (
-                                            <div className="divide-y divide-outline-variant/10">
-                                                {(data.loginLogs || []).filter(l => l.user_id === selectedUser.id).map(log => (
-                                                    <div key={log.id} className="p-4 flex justify-between items-center group">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-2 h-2 rounded-full bg-primary"></div>
-                                                            <div>
-                                                                <p className="text-xs font-bold text-on-surface uppercase tracking-tight">System Authentication</p>
-                                                                <p className="text-[10px] text-on-surface-variant font-medium opacity-60">{new Date(log.timestamp).toLocaleString()}</p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-4">
+                                        <h4 className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest px-2">Access History (Recent Logins)</h4>
+                                        <div className="bg-surface-container-low rounded-2xl border border-outline-variant/10 h-64 overflow-y-auto">
+                                            {(data.loginLogs || []).filter(l => l.user_id === selectedUser.id && l.action === 'login').length === 0 ? (
+                                                <div className="h-full flex items-center justify-center text-on-surface-variant/40 italic text-xs">No login records found</div>
+                                            ) : (
+                                                <div className="divide-y divide-outline-variant/10">
+                                                    {(data.loginLogs || []).filter(l => l.user_id === selectedUser.id && l.action === 'login').map(log => (
+                                                        <div key={log.id} className="p-4 flex justify-between items-center group">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-2 h-2 rounded-full bg-primary"></div>
+                                                                <div>
+                                                                    <p className="text-xs font-bold text-on-surface uppercase tracking-tight">System Authentication</p>
+                                                                    <p className="text-[10px] text-on-surface-variant font-medium opacity-60">{new Date(log.timestamp).toLocaleString()}</p>
+                                                                </div>
                                                             </div>
+                                                            <span className="text-[9px] font-black text-primary bg-primary/10 px-2 py-1 rounded italic h-min">{timeAgo(log.timestamp)}</span>
                                                         </div>
-                                                        <span className="text-[9px] font-black text-primary bg-primary/10 px-2 py-1 rounded italic h-min">{timeAgo(log.timestamp)}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <h4 className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest px-2 flex justify-between">
+                                            Managed Student Records
+                                            <span className="text-primary opacity-60 lowercase font-medium">{data.students.filter(s => s.created_by === selectedUser.id).length} total</span>
+                                        </h4>
+                                        <div className="bg-surface-container-low rounded-2xl border border-outline-variant/10 h-64 overflow-y-auto">
+                                            {data.students.filter(s => s.created_by === selectedUser.id).length === 0 ? (
+                                                <div className="h-full flex items-center justify-center text-on-surface-variant/40 italic text-xs">No students enrolled by this user</div>
+                                            ) : (
+                                                <div className="divide-y divide-outline-variant/10">
+                                                    {data.students.filter(s => s.created_by === selectedUser.id).map(student => (
+                                                        <div key={student.id} className="p-4 flex justify-between items-center group hover:bg-white/40 transition-colors">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-8 h-8 rounded-full bg-secondary-container text-secondary flex items-center justify-center text-[10px] font-black">
+                                                                    {student.name[0]}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-xs font-bold text-on-surface">{student.name}</p>
+                                                                    <p className="text-[10px] text-on-surface-variant font-medium opacity-60 uppercase">Enrolled {new Date(String(student.created_at || new Date()).replace(' ', 'T')).toLocaleDateString()}</p>
+                                                                </div>
+                                                            </div>
+                                                            <button 
+                                                                onClick={() => handleRemoveStudent(student.id)}
+                                                                className="opacity-0 group-hover:opacity-100 p-2 text-error hover:bg-error/10 rounded-full transition-all"
+                                                                title="Remove Student Record"
+                                                            >
+                                                                <span className="material-symbols-outlined text-sm">person_remove</span>
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -770,8 +893,8 @@ const AdminDashboard = () => {
                                                 { label: 'Neutral', key: 'neutral', color: 'bg-primary', icon: '😐' },
                                                 { label: 'Critical', key: 'sad', color: 'bg-error', icon: '😟' }
                                             ].map(mood => {
-                                                const count = data.feedback.insights.moodDistribution[mood.key];
-                                                const total = data.feedback.insights.totalCount || 1;
+                                                const count = (data.feedback?.insights?.moodDistribution || {})[mood.key] || 0;
+                                                const total = data.feedback?.insights?.totalCount || 1;
                                                 const pct = (count / total) * 100;
                                                 return (
                                                     <div key={mood.key} className="space-y-1">
@@ -887,6 +1010,72 @@ const AdminDashboard = () => {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                )}
+                {activeTab === 'activity' && (
+                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="mb-8 border-b border-outline-variant/10 pb-8">
+                            <h2 className="text-4xl font-black font-headline text-on-surface tracking-tight">Institutional Activity Ledger</h2>
+                            <p className="text-on-surface-variant mt-2 font-medium italic opacity-70">Unified clinical audit trail with real-time sync across all nodes.</p>
+                        </div>
+
+                        <div className="max-w-4xl mx-auto">
+                            {data.loginLogs.length === 0 ? (
+                                <div className="py-32 flex flex-col items-center justify-center text-center">
+                                    <div className="w-24 h-24 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant/20 mb-6">
+                                        <span className="material-symbols-outlined text-5xl">history_toggle_off</span>
+                                    </div>
+                                    <h3 className="text-xl font-black text-on-surface">No Activity Detected</h3>
+                                    <p className="text-on-surface-variant text-sm font-medium mt-2">The clinical event stream is currently clear.</p>
+                                </div>
+                            ) : (
+                                <div className="relative">
+                                    {/* Timeline line */}
+                                    <div className="absolute left-6 top-4 bottom-4 w-px bg-gradient-to-b from-primary/20 via-outline-variant/20 to-transparent"></div>
+                                    
+                                    <div className="space-y-8">
+                                        {data.loginLogs.map((log, idx) => {
+                                            const info = getActivityInfo(log);
+                                            return (
+                                                <div key={log.id} className="relative pl-16 group">
+                                                    {/* Timeline node */}
+                                                    <div className={`absolute left-0 top-0 w-12 h-12 rounded-2xl ${info.color} text-on-primary flex items-center justify-center shadow-lg shadow-primary/10 z-10 transition-transform group-hover:scale-110 duration-300`}>
+                                                        <span className="material-symbols-outlined text-xl">{info.icon}</span>
+                                                    </div>
+                                                    
+                                                    <div className="bg-surface-container-lowest p-6 rounded-3xl border border-outline-variant/10 shadow-sm transition-all hover:shadow-md hover:border-primary/20">
+                                                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                                                            <div>
+                                                                <h4 className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mb-1">{info.title}</h4>
+                                                                <div className="text-sm font-medium text-on-surface-variant leading-relaxed">
+                                                                    {info.text}
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-right shrink-0">
+                                                                <p className="text-[10px] font-black text-primary uppercase tracking-widest italic">{timeAgo(log.timestamp)}</p>
+                                                                <p className="text-[10px] font-medium text-on-surface-variant opacity-40 uppercase truncate">{formatTimestamp(log.timestamp)}</p>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        {/* Activity Meta */}
+                                                        <div className="flex items-center gap-4 pt-4 border-t border-outline-variant/5">
+                                                            <div className="flex -space-x-2">
+                                                                <div className="w-6 h-6 rounded-full bg-surface-container-high border border-surface flex items-center justify-center text-[8px] font-black">
+                                                                    {log.user_id?.slice(0,1).toUpperCase()}
+                                                                </div>
+                                                            </div>
+                                                            <p className="text-[9px] font-bold text-on-surface-variant/40 uppercase tracking-widest">
+                                                                Node Verification: {log.id.toString().padStart(6, '0')}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
