@@ -11,7 +11,7 @@ export default async function handler(req, res) {
      
      const usersResult = await db.execute("SELECT id, email, first_name, last_name, role, org_id, created_at FROM users");
      const studentsResult = await db.execute("SELECT id, name, age_years, age_months, org_id, created_at FROM students");
-     const assessmentsResult = await db.execute("SELECT id, student_id, assessor_id, date, status, created_at FROM assessments");
+     const assessmentsResult = await db.execute("SELECT id, student_id, assessor_id, date, domain_data, status, created_at FROM assessments");
      
      return res.status(200).json({ 
         users: usersResult.rows,

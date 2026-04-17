@@ -171,8 +171,8 @@ const AdminDashboard = () => {
                                 <div className="bg-surface-container-lowest p-6 rounded-lg border border-outline-variant/10 shadow-sm">
                                     <div className="flex justify-between items-center mb-6">
                                         <div>
-                                            <h3 className="text-xl font-bold text-on-surface font-headline">Student Performance Overview</h3>
-                                            <p className="text-sm text-on-surface-variant font-medium">Aggregate mastery levels across primary domains</p>
+                                            <h3 className="text-xl font-bold text-on-surface font-headline">System Insights</h3>
+                                            <p className="text-sm text-on-surface-variant font-medium">Platform metrics overview · <span className="text-tertiary font-bold">Live Data</span></p>
                                         </div>
                                         <div className="flex gap-2 p-1 bg-surface-container rounded-full border border-outline-variant/10">
                                             {['week', 'month', 'year'].map(f => (
@@ -186,31 +186,115 @@ const AdminDashboard = () => {
                                             ))}
                                         </div>
                                     </div>
-                                    <div className="h-56 flex items-end justify-between gap-3 px-2 pb-2 border-b border-outline-variant/10">
-                                        {[
-                                            { label: 'Social', val: 72 },
-                                            { label: 'Cognitive', val: 84 },
-                                            { label: 'Motor', val: 65 },
-                                            { label: 'Language', val: 91 },
-                                            { label: 'Adaptive', val: 78 },
-                                            { label: 'Executive', val: 88 }
-                                        ].map(item => (
-                                            <div key={item.label} className="flex-1 flex flex-col items-center gap-2 group relative">
-                                                <div className="w-full bg-primary/5 rounded-t-lg relative h-full transition-all group-hover:bg-primary/10">
-                                                    <div 
-                                                        className="absolute bottom-0 w-full bg-primary rounded-t-lg transition-all duration-1000 ease-out group-hover:brightness-110 shadow-sm" 
-                                                        style={{ height: `${item.val}%` }}
-                                                    >
-                                                        <div className="w-full h-full bg-gradient-to-t from-black/5 to-transparent rounded-t-lg opacity-50"></div>
+                                    {/* Bar Chart — Real-time system metrics */}
+                                    {(() => {
+                                        // Time window based on selected filter
+                                        const now = new Date();
+                                        const cutoff = new Date(now);
+                                        if (chartFilter === 'week') cutoff.setDate(now.getDate() - 7);
+                                        else if (chartFilter === 'month') cutoff.setMonth(now.getMonth() - 1);
+                                        else cutoff.setFullYear(now.getFullYear() - 1);
+
+                                        const inRange = (dateStr) => {
+                                            if (!dateStr) return false;
+                                            return new Date(dateStr) >= cutoff;
+                                        };
+
+                                        const filteredUsers = data.users.filter(u => inRange(u.created_at));
+                                        const filteredStudents = data.students.filter(s => inRange(s.created_at));
+                                        const filteredAssessments = data.assessments.filter(a => inRange(a.created_at));
+                                        const filteredAdmins = filteredUsers.filter(u => u.role === 'admin');
+                                        const filteredLogins = filteredUsers.length; // login accounts created in range
+
+                                        const periodLabel = chartFilter === 'week' ? 'This Week' : chartFilter === 'month' ? 'This Month' : 'This Year';
+
+                                        const chartData = [
+                                            { label: 'Active Users', val: filteredUsers.length, icon: 'person', color: 'from-[#655789] to-[#8B7AB8]' },
+                                            { label: 'Students',     val: filteredStudents.length, icon: 'school', color: 'from-[#625c71] to-[#8A8499]' },
+                                            { label: 'Assessments',  val: filteredAssessments.length, icon: 'assignment', color: 'from-[#7b5270] to-[#A87B9C]' },
+                                            { label: 'Total Logins', val: filteredLogins, icon: 'login', color: 'from-[#594b7c] to-[#8573AA]' },
+                                            { label: 'Admins',       val: filteredAdmins.length, icon: 'admin_panel_settings', color: 'from-[#6e4664] to-[#9A7090]' },
+                                        ];
+
+                                        const maxVal = Math.max(...chartData.map(d => d.val), 1);
+                                        // Generate nice Y-axis ticks
+                                        const rawStep = maxVal / 4;
+                                        const step = rawStep <= 1 ? 1 : rawStep <= 5 ? 5 : Math.ceil(rawStep / 5) * 5;
+                                        const yMax = Math.ceil(maxVal / step) * step || step;
+                                        const yTicks = Array.from({ length: 5 }, (_, i) => Math.round((yMax / 4) * i));
+                                        const barHeight = 240;
+
+                                        return (
+                                            <div className="flex">
+                                                {/* Y-Axis */}
+                                                <div className="flex flex-col justify-between items-end pr-3 py-1" style={{ height: barHeight }}>
+                                                    {yTicks.slice().reverse().map(tick => (
+                                                        <span key={tick} className="text-[10px] font-bold text-on-surface-variant/50 tabular-nums leading-none">{tick}</span>
+                                                    ))}
+                                                </div>
+
+                                                {/* Chart Area */}
+                                                <div className="flex-1">
+                                                    <div className="relative border-l border-b border-outline-variant/20" style={{ height: barHeight }}>
+                                                        {/* Horizontal grid lines */}
+                                                        {yTicks.map(tick => (
+                                                            <div 
+                                                                key={tick}
+                                                                className="absolute left-0 right-0 border-t border-dashed border-outline-variant/10"
+                                                                style={{ bottom: `${(tick / yMax) * 100}%` }}
+                                                            />
+                                                        ))}
+
+                                                        {/* Bars */}
+                                                        <div className="absolute inset-0 flex items-end justify-around px-4 gap-4">
+                                                            {chartData.map(item => {
+                                                                const pct = yMax > 0 ? (item.val / yMax) * 100 : 0;
+                                                                return (
+                                                                    <div key={item.label} className="flex-1 flex flex-col items-center group relative h-full justify-end max-w-[100px]">
+                                                                        {/* Hover tooltip */}
+                                                                        <div 
+                                                                            className="absolute left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface text-[11px] font-black px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none shadow-2xl z-10 whitespace-nowrap"
+                                                                            style={{ bottom: `calc(${pct}% + 12px)` }}
+                                                                        >
+                                                                            {item.val} {item.label} · {periodLabel}
+                                                                            <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-[5px] border-r-[5px] border-t-[5px] border-transparent border-t-inverse-surface"></div>
+                                                                        </div>
+                                                                        {/* Value always visible above bar */}
+                                                                        <span className="text-sm font-black text-on-surface mb-1.5 group-hover:opacity-0 transition-opacity">
+                                                                            {item.val}
+                                                                        </span>
+                                                                        {/* Rounded rectangle bar — darkens on hover */}
+                                                                        <div 
+                                                                            className={`w-full rounded-xl bg-gradient-to-t ${item.color} transition-all duration-300 ease-out shadow-md group-hover:shadow-xl relative overflow-hidden cursor-pointer`}
+                                                                            style={{ 
+                                                                                height: `${pct}%`, 
+                                                                                minHeight: item.val > 0 ? '8px' : '2px',
+                                                                            }}
+                                                                        >
+                                                                            {/* Darken overlay on hover */}
+                                                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300 rounded-xl"></div>
+                                                                            {/* Subtle shine */}
+                                                                            <div className="absolute inset-0 bg-gradient-to-r from-white/10 via-transparent to-white/5 rounded-xl"></div>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* X-Axis Labels */}
+                                                    <div className="flex items-start justify-around px-4 gap-4 mt-3">
+                                                        {chartData.map(item => (
+                                                            <div key={item.label} className="flex-1 text-center max-w-[100px] flex flex-col items-center gap-0.5">
+                                                                <span className="material-symbols-outlined text-[14px] text-on-surface-variant/40">{item.icon}</span>
+                                                                <span className="text-[9px] font-black uppercase tracking-wider text-on-surface-variant/60 leading-tight">{item.label}</span>
+                                                            </div>
+                                                        ))}
                                                     </div>
                                                 </div>
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant opacity-70 group-hover:opacity-100 transition-opacity whitespace-nowrap">{item.label}</span>
-                                                <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-on-surface text-surface text-[10px] font-black px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-xl">
-                                                    {item.val}%
-                                                </div>
                                             </div>
-                                        ))}
-                                    </div>
+                                        );
+                                    })()}
                                 </div>
 
                                 {/* Goals Preview Tile */}
