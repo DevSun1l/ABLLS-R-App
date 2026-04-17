@@ -8,13 +8,27 @@ const SurveyPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const handleSurveySubmit = (data) => {
-    const rawData = sessionStorage.getItem('ablls_surveys');
-    let surveys = rawData ? JSON.parse(rawData) : [];
-    surveys.push({ ...data, date: new Date().toISOString() });
-    sessionStorage.setItem('ablls_surveys', JSON.stringify(surveys));
-    
-    setSubmitted(true);
+  const handleSurveySubmit = async (data) => {
+    try {
+      const token = sessionStorage.getItem('ablls_token');
+      const res = await fetch('/api/feedback/save', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        setSubmitted(true);
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to submit feedback');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Network error submitting feedback');
+    }
   };
 
   return (

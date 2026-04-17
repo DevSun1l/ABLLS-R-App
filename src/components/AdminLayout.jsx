@@ -12,6 +12,7 @@ const AdminLayout = ({ children, activeTab, setActiveTab }) => {
     { title: 'User Access', icon: 'groups', tab: 'users', path: '/admin' },
     { title: 'Goal Library', icon: 'library_books', tab: 'goals', path: '/admin/goals' },
     { title: 'Organizations', icon: 'corporate_fare', tab: 'organizations', path: '/admin' },
+    { title: 'Feedback Portal', icon: 'forum', tab: 'feedback', path: '/admin' },
     { title: 'Data & Backups', icon: 'analytics', tab: 'data', path: '/admin' },
   ];
 
@@ -102,17 +103,12 @@ const AdminLayout = ({ children, activeTab, setActiveTab }) => {
           })}
         </nav>
         
-        <div className="border-t border-outline-variant/10 pt-4">
-          <a className="text-on-surface-variant mx-4 py-3 px-6 flex items-center gap-4 hover:bg-white/50 rounded-full transition-all" href="#">
-            <span className="material-symbols-outlined">help</span>
-            <span className="text-sm font-medium">Help Center</span>
-          </a>
+        <div className="px-4 pb-6 mt-auto">
           <button 
             onClick={logout}
-            className="w-[calc(100%-2rem)] text-error mx-4 py-3 px-6 flex items-center gap-4 hover:bg-error/5 rounded-full transition-all text-left"
+            className="w-full bg-primary text-on-primary shadow-lg shadow-primary/20 hover:bg-primary-dim transition-all duration-300 font-black text-[10px] uppercase tracking-widest py-4 px-6 rounded-full transform hover:-translate-y-1 flex items-center justify-center gap-3 active:scale-95"
           >
-            <span className="material-symbols-outlined">logout</span>
-            <span className="text-sm font-medium">Logout</span>
+            <span className="material-symbols-outlined text-sm">logout</span> Sign Out
           </button>
         </div>
       </aside>

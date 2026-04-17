@@ -22,8 +22,8 @@ export default async function handler(req, res) {
         });
      } else {
         await db.execute({
-           sql: "INSERT INTO students (id, org_id, name, age_years, age_months, diagnoses, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
-           args: [id, decoded.org_id, name, ageYears, ageMonths, JSON.stringify(diagnoses), notes]
+           sql: "INSERT INTO students (id, org_id, created_by, name, age_years, age_months, diagnoses, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+           args: [id, decoded.org_id, decoded.id, name, ageYears, ageMonths, JSON.stringify(diagnoses), notes]
         });
      }
      

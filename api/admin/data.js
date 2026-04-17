@@ -9,11 +9,12 @@ export default async function handler(req, res) {
 
       const db = getDb();
      
-      // Fetch users with their student counts and assessment counts
+      // Fetch users with their student counts, assessment counts, and unique students assessed
       const usersResult = await db.execute(`
          SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.org_id, u.status, u.created_at,
-         (SELECT COUNT(*) FROM students s WHERE s.created_by = u.id) as student_count,
-         (SELECT COUNT(*) FROM assessments a WHERE a.assessor_id = u.id) as assessment_count
+         (SELECT COUNT(DISTINCT s.id) FROM students s LEFT JOIN assessments a ON s.id = a.student_id WHERE s.created_by = u.id OR a.assessor_id = u.id) as student_count,
+         (SELECT COUNT(*) FROM assessments a WHERE a.assessor_id = u.id) as assessment_count,
+         (SELECT COUNT(DISTINCT a.student_id) FROM assessments a WHERE a.assessor_id = u.id) as students_assessed_count
          FROM users u
       `);
 

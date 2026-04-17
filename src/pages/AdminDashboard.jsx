@@ -7,7 +7,13 @@ const AdminDashboard = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
-    const [data, setData] = useState({ users: [], students: [], assessments: [], loginLogs: [] });
+    const [data, setData] = useState({ 
+        users: [], 
+        students: [], 
+        assessments: [], 
+        loginLogs: [],
+        feedback: { entries: [], insights: { avgRating: 0, moodDistribution: { happy: 0, neutral: 0, sad: 0 }, totalCount: 0 } }
+    });
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState(location.state?.tab || 'overview');
     const [chartFilter, setChartFilter] = useState('month');
@@ -23,13 +29,21 @@ const AdminDashboard = () => {
     const fetchAdminData = async () => {
         try {
             const token = sessionStorage.getItem('ablls_token');
-            const res = await fetch('/api/admin/data', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const result = await res.json();
-                setData(result);
+            const [dataRes, feedbackRes] = await Promise.all([
+                fetch('/api/admin/data', { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch('/api/admin/feedback', { headers: { 'Authorization': `Bearer ${token}` } })
+            ]);
+
+            let newData = { ...data };
+            if (dataRes.ok) {
+                const result = await dataRes.json();
+                newData = { ...newData, ...result };
             }
+            if (feedbackRes.ok) {
+                const fbResult = await feedbackRes.json();
+                newData = { ...newData, feedback: fbResult };
+            }
+            setData(newData);
         } catch (e) {
             console.error("Admin data fetch error:", e);
         } finally {
@@ -659,17 +673,22 @@ const AdminDashboard = () => {
                                     </button>
                                 </div>
                             </div>
-                            <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="grid grid-cols-2 gap-4">
+                            <div className="p-8 space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/10">
                                         <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1">Student Assets</p>
                                         <p className="text-3xl font-black text-primary font-headline">{selectedUser.student_count || 0}</p>
                                         <p className="text-[10px] text-on-surface-variant font-medium opacity-60 mt-1 uppercase">Under Management</p>
                                     </div>
                                     <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/10">
-                                        <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1">Assessments</p>
-                                        <p className="text-3xl font-black text-primary font-headline">{selectedUser.assessment_count || 0}</p>
-                                        <p className="text-[10px] text-on-surface-variant font-medium opacity-60 mt-1 uppercase">Tests Performed</p>
+                                        <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1">Students Assessed</p>
+                                        <p className="text-3xl font-black text-tertiary font-headline">{selectedUser.students_assessed_count || 0}</p>
+                                        <p className="text-[10px] text-on-surface-variant font-medium opacity-60 mt-1 uppercase">Unique Evaluations</p>
+                                    </div>
+                                    <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/10">
+                                        <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1">Total Tests</p>
+                                        <p className="text-3xl font-black text-secondary font-headline">{selectedUser.assessment_count || 0}</p>
+                                        <p className="text-[10px] text-on-surface-variant font-medium opacity-60 mt-1 uppercase">Performances</p>
                                     </div>
                                 </div>
                                 <div className="space-y-4">
@@ -693,6 +712,159 @@ const AdminDashboard = () => {
                                                 ))}
                                             </div>
                                         )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {activeTab === 'feedback' && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="mb-8 border-b border-outline-variant/10 pb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div>
+                                <h2 className="text-4xl font-black font-headline text-on-surface tracking-tight">Feedback Intelligence</h2>
+                                <p className="text-on-surface-variant mt-2 font-medium italic opacity-70">Capture and visualize specialist sentiment in real-time.</p>
+                            </div>
+                            <div className="flex gap-4">
+                                <div className="bg-surface-container-high px-6 py-3 rounded-2xl border border-outline-variant/20 flex items-center gap-3">
+                                    <span className="material-symbols-outlined text-warning text-2xl">star</span>
+                                    <div>
+                                        <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest leading-none mb-1">Avg Rating</p>
+                                        <p className="text-xl font-black text-on-surface leading-none">{data.feedback.insights.avgRating.toFixed(1)} <span className="text-xs text-on-surface-variant italic">/ 5.0</span></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-12 gap-6">
+                            {/* Mood Insights Chart */}
+                            <div className="col-span-12 lg:col-span-12 bg-surface-container-lowest p-8 rounded-3xl border border-outline-variant/10 shadow-sm relative overflow-hidden group">
+                                <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-12">
+                                    <div className="max-w-md">
+                                        <h3 className="text-2xl font-black font-headline text-on-surface mb-4 tracking-tight">Emotional Sentiment Matrix</h3>
+                                        <p className="text-on-surface-variant text-sm font-medium leading-relaxed opacity-70 mb-8">
+                                            Aggregated clinical mood pulse based on anonymous specialist submissions. Updated every 30 seconds.
+                                        </p>
+                                        <div className="space-y-4">
+                                            {[
+                                                { label: 'Positive', key: 'happy', color: 'bg-success', icon: '😊' },
+                                                { label: 'Neutral', key: 'neutral', color: 'bg-primary', icon: '😐' },
+                                                { label: 'Critical', key: 'sad', color: 'bg-error', icon: '😟' }
+                                            ].map(mood => {
+                                                const count = data.feedback.insights.moodDistribution[mood.key];
+                                                const total = data.feedback.insights.totalCount || 1;
+                                                const pct = (count / total) * 100;
+                                                return (
+                                                    <div key={mood.key} className="space-y-1">
+                                                        <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
+                                                            <span className="flex items-center gap-2"><span className="text-sm">{mood.icon}</span> {mood.label}</span>
+                                                            <span>{pct.toFixed(0)}%</span>
+                                                        </div>
+                                                        <div className="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
+                                                            <div 
+                                                                className={`h-full ${mood.color} transition-all duration-1000 ease-out`}
+                                                                style={{ width: `${pct}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                    <div className="relative w-64 h-64 shrink-0 flex items-center justify-center">
+                                        {/* Simple SVG Donut Chart */}
+                                        <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                                            {(() => {
+                                                const total = data.feedback.insights.totalCount || 1;
+                                                const h = data.feedback.insights.moodDistribution.happy;
+                                                const n = data.feedback.insights.moodDistribution.neutral;
+                                                const s = data.feedback.insights.moodDistribution.sad;
+                                                
+                                                const hPct = (h / total) * 100;
+                                                const nPct = (n / total) * 100;
+                                                const sPct = (s / total) * 100;
+                                                
+                                                return (
+                                                    <>
+                                                        <circle cx="18" cy="18" r="16" fill="none" className="stroke-surface-container-high" strokeWidth="3" />
+                                                        <circle cx="18" cy="18" r="16" fill="none" className="stroke-success" strokeWidth="3" strokeDasharray={`${hPct} 100`} strokeDashoffset="0" />
+                                                        <circle cx="18" cy="18" r="16" fill="none" className="stroke-primary" strokeWidth="3" strokeDasharray={`${nPct} 100`} strokeDashoffset={`-${hPct}`} />
+                                                        <circle cx="18" cy="18" r="16" fill="none" className="stroke-error" strokeWidth="3" strokeDasharray={`${sPct} 100`} strokeDashoffset={`-${hPct + nPct}`} />
+                                                    </>
+                                                );
+                                            })()}
+                                        </svg>
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                            <p className="text-3xl font-black text-on-surface leading-none">{data.feedback.insights.totalCount}</p>
+                                            <p className="text-[10px] uppercase font-black tracking-widest text-on-surface-variant opacity-60">Submissions</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <span className="material-symbols-outlined absolute -right-8 -top-8 text-[180px] text-primary/5 -rotate-12 transition-transform group-hover:scale-110">sentiment_satisfied</span>
+                            </div>
+
+                            {/* Feedback Feed */}
+                            <div className="col-span-12">
+                                <div className="bg-surface-container-lowest rounded-3xl border border-outline-variant/10 shadow-sm overflow-hidden">
+                                    <div className="p-6 border-b border-outline-variant/10 flex justify-between items-center">
+                                        <h3 className="text-lg font-black font-headline text-on-surface tracking-tight">Recent Perspectives</h3>
+                                        <div className="flex gap-2">
+                                            <span className="flex items-center gap-1.5 text-[10px] font-black text-tertiary uppercase tracking-widest">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-tertiary animate-pulse"></span> Streaming Insights
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left">
+                                            <thead className="bg-surface-container-low text-[10px] font-black uppercase tracking-widest text-on-surface-variant border-b border-outline-variant/10">
+                                                <tr>
+                                                    <th className="px-8 py-4">Submission ID</th>
+                                                    <th className="px-8 py-4">Specialist Alias</th>
+                                                    <th className="px-8 py-4 text-center">Mood</th>
+                                                    <th className="px-8 py-4">Critical Synthesis (Comments)</th>
+                                                    <th className="px-8 py-4 text-right">Chronology</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-outline-variant/10">
+                                                {data.feedback.entries.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan="5" className="px-8 py-12 text-center text-on-surface-variant/40 italic text-sm">No feedback captures detected in system</td>
+                                                    </tr>
+                                                ) : data.feedback.entries.map(fb => (
+                                                    <tr key={fb.id} className="hover:bg-surface-container-low/30 transition-colors group">
+                                                        <td className="px-8 py-6">
+                                                            <span className="text-[10px] font-mono font-bold text-outline opacity-60">#FB-{fb.id.slice(-6).toUpperCase()}</span>
+                                                        </td>
+                                                        <td className="px-8 py-6">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-xs font-black ring-1 ring-outline-variant/20">
+                                                                    {fb.name?.[0]?.toUpperCase() || 'A'}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-sm font-bold text-on-surface">{fb.name}</p>
+                                                                    <p className="text-[10px] font-black text-on-surface-variant opacity-60 uppercase">{fb.assessor_type}</p>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-8 py-4 text-center">
+                                                            <div className="text-2xl drop-shadow-sm group-hover:scale-125 transition-transform duration-300">
+                                                                {fb.mood === 'happy' ? '😊' : fb.mood === 'neutral' ? '😐' : '😟'}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-8 py-6">
+                                                            <div className="max-w-md">
+                                                                <p className="text-sm font-bold text-primary italic mb-1">"{fb.one_word}"</p>
+                                                                <p className="text-xs text-on-surface-variant font-medium leading-relaxed line-clamp-2 hover:line-clamp-none transition-all">{fb.comments}</p>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-8 py-6 text-right">
+                                                            <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1 italic">{timeAgo(fb.created_at)}</p>
+                                                            <p className="text-[10px] font-medium text-on-surface-variant opacity-40 uppercase">{formatTimestamp(fb.created_at)}</p>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
                             </div>
