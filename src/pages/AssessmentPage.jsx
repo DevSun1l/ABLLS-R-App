@@ -16,7 +16,6 @@ const AssessmentPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
-    // Load local fallback or actual DB assessment data
     const fetchData = async () => {
       try {
         const token = sessionStorage.getItem('ablls_token');
@@ -49,8 +48,13 @@ const AssessmentPage = () => {
     fetchData();
   }, [id]);
 
-  if (isLoading) return <div className="p-8 text-center mt-20 font-bold text-gray-500 animate-pulse">Synchronizing Assessment Protocol...</div>;
-  if (!student) return <div className="p-8 text-center text-danger">Error: Student Context Lost</div>;
+  if (isLoading) return (
+     <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent animate-spin rounded-full" />
+        <p className="text-xs font-black text-primary uppercase tracking-[0.3em] animate-pulse">Launching Clinical Sidebar...</p>
+     </div>
+  );
+  if (!student) return <div className="p-20 text-center font-black text-error uppercase tracking-widest">Protocol Sync Error: Student Context Lost</div>;
 
   const currentDomain = ABLLS_DOMAINS[domainIndex];
   const currentSkills = currentDomain.skills;
@@ -133,8 +137,8 @@ const AssessmentPage = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto relative pb-24">
-      <div className="mb-6 sticky top-0 bg-background pt-4 pb-2 z-10 border-b border-gray-200">
+    <div className="max-w-[1200px] mx-auto relative pb-32 animate-in fade-in duration-700">
+      <div className="mb-12 sticky top-0 bg-surface/80 backdrop-blur-xl pt-4 pb-4 z-10 border-b border-outline-variant/10">
         <DomainProgressBar 
            currentDomainId={currentDomain.id} 
            studentDomains={assessmentData} 
@@ -142,39 +146,48 @@ const AssessmentPage = () => {
         />
       </div>
       
-      <div className="mb-8 p-8 bg-primary-container/30 border-l-4 border-primary rounded-r-2xl shadow-sm">
-        <h2 className="text-2xl font-black text-on-surface font-headline tracking-tight">Domain {currentDomain.id} — {currentDomain.name}</h2>
-        <p className="text-primary uppercase text-sm font-extrabold tracking-widest mt-1">{currentDomain.category}</p>
+      <div className="mb-12 p-10 bg-primary/5 border-l-[10px] border-primary rounded-r-[2rem] shadow-sm flex items-center justify-between">
+        <div className="space-y-2">
+            <h2 className="text-[10px] font-black text-primary uppercase tracking-[0.4em] mb-4">Protocol Section</h2>
+            <h3 className="text-4xl font-black text-on-surface font-headline tracking-tighter">Domain {currentDomain.id} — {currentDomain.name}</h3>
+            <p className="text-on-surface-variant text-lg font-medium opacity-60">{currentDomain.category}</p>
+        </div>
+        <div className="hidden lg:block text-right">
+            <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">Assessing</p>
+            <p className="text-xl font-black text-on-surface leading-none">{student.name}</p>
+        </div>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-8">
         {currentSkills.map(skill => (
-          <div key={skill.code} className="bg-white border-2 border-outline-variant/20 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-primary/40 transition-all group">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-outline-variant/10 pb-5">
-              <div className="flex items-start gap-4">
-                 <div className="bg-surface-container-high text-on-surface-variant font-black px-4 py-2 rounded-xl border border-outline-variant/10 shrink-0 shadow-sm mt-0.5">
+          <div key={skill.code} className="bg-white border border-outline-variant/10 rounded-[2.5rem] p-10 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all duration-500 group">
+            <div className="flex flex-col md:flex-row md:items-start justify-between gap-6 mb-10 pb-6 border-b border-outline-variant/5">
+              <div className="flex items-start gap-8">
+                 <div className="w-16 h-16 bg-surface-container-low text-primary font-black flex items-center justify-center rounded-2xl border border-outline-variant/5 text-lg shadow-inner shrink-0 group-hover:scale-110 transition-transform">
                    {skill.code}
                  </div>
-                 <div>
-                   <p className="text-xl font-semibold text-on-surface leading-snug">{skill.description}</p>
-                   {skill.isGateway && (
-                     <span className="inline-block mt-3 text-[10px] font-black tracking-widest text-on-tertiary-container bg-tertiary-container px-3 py-1.5 rounded-full uppercase">Gateway Skill</span>
-                   )}
+                 <div className="space-y-4">
+                    <p className="text-2xl font-black text-on-surface leading-tight tracking-tight">{skill.description}</p>
+                    <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-black text-primary uppercase tracking-widest px-4 py-2 bg-primary/5 rounded-full border border-primary/10">Complexity: Level {skill.level}</span>
+                        {skill.isGateway && (
+                            <span className="text-[10px] font-black text-tertiary uppercase tracking-widest px-4 py-2 bg-tertiary/5 rounded-full border border-tertiary/10 flex items-center gap-2">
+                                <span className="material-symbols-outlined text-[14px]">key</span> Gateway Logic
+                            </span>
+                        )}
+                    </div>
                  </div>
               </div>
-              <span className="capitalize text-xs font-black tracking-widest bg-secondary-container text-on-secondary-container px-4 py-1.5 rounded-full border border-secondary-container/50 self-start shrink-0 whitespace-nowrap">
-                Level {skill.level}
-              </span>
             </div>
             
             {(currentDomainData.skills[currentSkills[0].code] === 'no' && skill.isGateway === false) ? (
-              <div className="text-center py-6 bg-surface-container rounded-2xl border-2 border-dashed border-outline-variant/30 text-on-surface-variant font-bold uppercase tracking-wider text-sm shadow-inner group-hover:bg-surface-variant/50 transition-colors">
-                Autoskipped (Gateway Requisite Not Met)
+              <div className="text-center py-12 bg-surface-container-low rounded-3xl border-4 border-dashed border-outline-variant/10 text-on-surface-variant font-black uppercase tracking-[0.3em] text-[10px] opacity-40 group-hover:bg-error/5 group-hover:text-error transition-all group-hover:border-error/20">
+                Lacking Requisite: Autoskipped
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-3 md:gap-4 lg:gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-8 max-w-4xl mx-auto">
                 <ScoreButton 
-                  type="yes" text="YES" 
+                  type="yes" text="YES (Observed)" 
                   active={currentDomainData.skills[skill.code] === 'yes'} 
                   onClick={() => handleScore(skill.code, 'yes', skill.isGateway)}
                 />
@@ -184,7 +197,7 @@ const AssessmentPage = () => {
                   onClick={() => handleScore(skill.code, 'sometimes', skill.isGateway)}
                 />
                 <ScoreButton 
-                  type="no" text="NO" 
+                  type="no" text="NO / Never" 
                   active={currentDomainData.skills[skill.code] === 'no'} 
                   onClick={() => handleScore(skill.code, 'no', skill.isGateway)}
                 />
@@ -194,41 +207,58 @@ const AssessmentPage = () => {
         ))}
       </div>
 
-      <div className="fixed bottom-0 left-0 md:left-72 right-0 bg-[#fdf7fe]/80 backdrop-blur-xl border-t border-primary/10 shadow-[0_-4px_25px_-5px_rgba(0,0,0,0.05)] p-4 sm:px-6 z-20">
-        <div className="max-w-4xl mx-auto flex justify-between">
+      {/* Control Bar */}
+      <div className="fixed bottom-0 left-64 right-0 bg-surface/90 backdrop-blur-2xl border-t border-outline-variant/10 p-6 z-30 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+        <div className="max-w-[1200px] mx-auto flex justify-between items-center px-4">
           <button 
             onClick={handlePrevDomain}
             disabled={domainIndex === 0}
-            className={`px-8 py-4 font-bold rounded-full transition-all flex items-center justify-center min-w-[140px] text-sm tracking-wide ${domainIndex === 0 ? 'opacity-40 cursor-not-allowed bg-surface-container-low text-on-surface-variant' : 'bg-surface-container hover:bg-surface-variant text-on-surface hover:shadow-sm'}`}
+            className={`px-10 py-5 font-black uppercase tracking-widest text-xs rounded-full transition-all flex items-center justify-center gap-3 ${domainIndex === 0 ? 'opacity-20 cursor-not-allowed text-on-surface' : 'text-on-surface hover:bg-surface-container-high active:scale-95'}`}
           >
-            <span className="material-symbols-outlined text-[18px] mr-2">arrow_back</span> Previous
+            <span className="material-symbols-outlined text-lg">arrow_back</span> Return to Previous Vector
           </button>
+          
+          <div className="hidden md:flex flex-col items-center">
+             <p className="text-[9px] font-black text-primary uppercase tracking-[0.4em] mb-1">Current Progress</p>
+             <div className="w-32 h-1 bg-surface-container rounded-full overflow-hidden">
+                <div className="h-full bg-primary transition-all duration-500" style={{ width: `${((domainIndex + 1) / ABLLS_DOMAINS.length) * 100}%` }} />
+             </div>
+          </div>
+
           <button 
             onClick={handleNextDomain}
-            className="px-8 py-4 font-bold text-on-primary bg-primary rounded-full hover:bg-primary-dim shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center justify-center min-w-[160px] text-sm tracking-wide"
+            className="px-12 py-5 font-black text-on-primary bg-primary rounded-full hover:bg-primary-dim shadow-xl shadow-primary/20 hover:shadow-2xl active:scale-[0.98] transition-all flex items-center justify-center gap-4 text-xs uppercase tracking-widest"
           >
-            {domainIndex < ABLLS_DOMAINS.length - 1 ? 'Next Domain' : 'View Progress'} <span className="material-symbols-outlined text-[18px] ml-2">arrow_forward</span>
+            {domainIndex < ABLLS_DOMAINS.length - 1 ? 'Advance Internal Vector' : 'View Final Analytics'} 
+            <span className="material-symbols-outlined text-lg">arrow_forward</span>
           </button>
         </div>
       </div>
 
       {showGatewayModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 align-middle transform transition-all scale-100 opacity-100 border border-gray-100">
-            <h3 className="text-xl font-black text-danger mb-2">Gateway Skill Not Met</h3>
-            <p className="text-textSecondary mb-6 font-medium leading-relaxed">Because the developmental requisite wasn't observed, remaining skills in this domain will automatically be marked as <span className="font-bold text-gray-700">Not Assessed</span>. Are you sure?</p>
-            <div className="flex justify-end gap-3 flex-col sm:flex-row">
-              <button 
-                onClick={handleGatewayCancel}
-                className="px-5 py-2.5 text-textSecondary bg-gray-100 hover:bg-gray-200 rounded-xl font-bold w-full sm:w-auto mt-2 sm:mt-0 order-2 sm:order-1 transition-colors"
-              >
-                Go Back
-              </button>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#34313a]/80 backdrop-blur-lg p-6 animate-in fade-in duration-300">
+          <div className="bg-white rounded-[3rem] shadow-2xl max-w-lg w-full p-12 text-center space-y-8 animate-in zoom-in-95 duration-500 border border-white/20">
+            <div className="w-24 h-24 bg-error/10 text-error rounded-full flex items-center justify-center mx-auto mb-4">
+               <span className="material-symbols-outlined text-5xl">priority_high</span>
+            </div>
+            <div className="space-y-4">
+                <h3 className="text-3xl font-black font-headline text-on-surface tracking-tighter">Gateway Requisite Gap</h3>
+                <p className="text-on-surface-variant font-medium leading-relaxed opacity-70">
+                    The developmental requisite for this domain was not observed. Standard clinical protocols suggest marking the remaining skills as <span className="text-error font-black uppercase tracking-widest">Not Assessed</span> to maintain data integrity.
+                </p>
+            </div>
+            <div className="flex flex-col gap-4">
               <button 
                 onClick={handleGatewaySkip}
-                className="px-5 py-2.5 text-white bg-danger hover:bg-danger/90 rounded-xl font-bold w-full sm:w-auto order-1 sm:order-2 shadow-sm transition-all hover:shadow-md"
+                className="w-full py-5 text-on-primary bg-error rounded-full font-black uppercase tracking-widest text-[10px] shadow-xl shadow-error/20 hover:bg-error-container hover:text-on-error-container transition-all"
               >
-                Skip Remaining
+                Conform & Skip Vector
+              </button>
+              <button 
+                onClick={handleGatewayCancel}
+                className="w-full py-5 text-on-surface-variant font-black uppercase tracking-widest text-[10px] hover:bg-surface-container-low rounded-full transition-all"
+              >
+                Return to Observation
               </button>
             </div>
           </div>

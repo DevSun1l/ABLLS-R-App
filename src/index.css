@@ -1,18 +1,65 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Manrope:wght@700;800;900&display=swap');
+
+:root {
+  --primary: #655789;
+  --primary-dim: #594b7c;
+  --primary-container: #d4c3fd;
+  --on-primary: #ffffff;
+  --on-primary-container: #21114b;
+  
+  --secondary: #625c71;
+  --secondary-container: #e8def8;
+  --on-secondary: #ffffff;
+  
+  --tertiary: #7b5270;
+  --tertiary-container: #ffd8ec;
+  --on-tertiary: #ffffff;
+  
+  --error: #ba1a1a;
+  --error-container: #ffdad6;
+  --on-error: #ffffff;
+  
+  --background: #fdf7fe;
+  --on-background: #1c1b1f;
+  
+  --surface: #fdf7fe;
+  --on-surface: #1c1b1f;
+  --surface-variant: #e7e0ec;
+  --on-surface-variant: #49454f;
+  
+  --outline: #79747e;
+  --outline-variant: #c4c6d0;
+
+  /* Clinical Sanctuary Extensions */
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #f8f1fa;
+  --surface-container: #f2ecf4;
+  --surface-container-high: #ece6ef;
+  --surface-container-highest: #e6e0e9;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  background-color: theme('colors.background');
-  color: theme('colors.textPrimary');
-  font-family: theme('fontFamily.sans');
-  margin: 0;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@layer base {
+  body {
+    @apply bg-background text-on-surface font-body antialiased;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-headline;
+  }
 }
 
-@layer base {
-  button {
-    @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2;
-  }
+.font-body { font-family: 'Inter', sans-serif; }
+.font-headline { font-family: 'Manrope', sans-serif; }
+.font-label { font-family: 'Inter', sans-serif; }
+
+/* Clinical Sanctuary Theme Utility Classes */
+@layer utilities {
+  .bg-surface-container-lowest { background-color: var(--surface-container-lowest); }
+  .bg-surface-container-low { background-color: var(--surface-container-low); }
+  .bg-surface-container { background-color: var(--surface-container); }
+  .bg-surface-container-high { background-color: var(--surface-container-high); }
+  .bg-surface-container-highest { background-color: var(--surface-container-highest); }
 }

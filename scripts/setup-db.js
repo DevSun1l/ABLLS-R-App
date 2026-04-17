@@ -78,6 +78,21 @@ async function setup() {
     );
   `);
 
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS feedback (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      name TEXT,
+      assessor_type TEXT,
+      rating INTEGER,
+      one_word TEXT,
+      mood TEXT,
+      comments TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+  `);
+
   console.log("Tables created correctly.");
 
   // Seeding default users (Admin & Therapist)

@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ABLLS_DOMAINS } from '../data/ablls';
 import { computeOverallMastery, computeDomainScore, getTopStrengths, getTopWeaknesses, getPriorityDomains, getDiagnosisInsights } from '../utils/scoring';
+import StudentAvatar from '../components/StudentAvatar';
 
 const ProgressPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [student, setStudent] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -36,149 +38,200 @@ const ProgressPage = () => {
            foundStudent.domains = {};
         }
 
-        const mastery = computeOverallMastery(foundStudent);
-        foundStudent.masteryPercent = mastery;
+        foundStudent.masteryPercent = computeOverallMastery(foundStudent);
         setStudent(foundStudent);
       } catch(e) {
-         console.error(e);
+         console.error("Clinical data sync failed:", e);
+      } finally {
+         setLoading(false);
       }
     };
     fetchData();
   }, [id]);
 
-  if (!student) return <div className="p-8 text-center text-textSecondary text-lg font-medium">Loading progress data...</div>;
+  const stats = useMemo(() => {
+    if (!student) return null;
+    return {
+      strengths: getTopStrengths(student, ABLLS_DOMAINS, 3),
+      weaknesses: getTopWeaknesses(student, ABLLS_DOMAINS, 3),
+      priorities: getPriorityDomains(student, ABLLS_DOMAINS),
+      insight: getDiagnosisInsights(student.diagnoses || [], getTopWeaknesses(student, ABLLS_DOMAINS, 3))
+    };
+  }, [student]);
 
-  const strengths = getTopStrengths(student, ABLLS_DOMAINS, 3);
-  const weaknesses = getTopWeaknesses(student, ABLLS_DOMAINS, 3);
-  const priorities = getPriorityDomains(student, ABLLS_DOMAINS);
-  const insightText = getDiagnosisInsights(student.diagnoses || [], weaknesses);
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
+       <div className="w-12 h-12 border-4 border-primary border-t-transparent animate-spin rounded-full" />
+       <p className="text-xs font-black text-primary uppercase tracking-[0.3em] animate-pulse">Analyzing Clinical Vectors...</p>
+    </div>
+  );
+
+  if (!student) return <div className="p-20 text-center font-black text-error uppercase tracking-widest">Protocol Sync Error: Student Context Lost</div>;
 
   return (
-    <div className="max-w-5xl mx-auto pb-12">
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-textPrimary tracking-tight">Assessment Progress</h1>
-          <p className="text-textSecondary mt-1 text-lg">Results for {student.name}</p>
+    <div className="space-y-12 animate-in fade-in duration-700">
+      
+      {/* Analytics Header */}
+      <section className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+        <div className="flex items-center gap-6">
+          <StudentAvatar seed={student.id} size="lg" mood={student.masteryPercent > 70 ? 'active' : 'stable'} />
+          <div>
+            <h1 className="text-4xl font-black font-headline text-on-surface tracking-tighter">Clinical Analytics Portal</h1>
+            <p className="text-on-surface-variant font-medium text-lg opacity-60">Verified assessment results for <span className="text-primary font-black underline underline-offset-4">{student.name}</span></p>
+          </div>
         </div>
-        <button 
-          onClick={() => navigate(`/intervention/${id}`)}
-          className="bg-primary hover:bg-primary/90 text-white font-bold py-3 px-6 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
-        >
-          Generate Intervention Plan &rarr;
-        </button>
-      </div>
+        <div className="flex gap-4">
+           <button 
+             onClick={() => navigate(`/intervention/${id}`)}
+             className="bg-primary text-on-primary px-10 py-4 rounded-full flex items-center gap-3 font-black text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:shadow-2xl transition-all active:scale-95"
+           >
+             Generate Strategy Plan <span className="material-symbols-outlined text-sm">precision_manufacturing</span>
+           </button>
+        </div>
+      </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-1 border border-border bg-card rounded-2xl p-8 flex flex-col items-center justify-center shadow-sm">
-           <h3 className="text-gray-500 font-semibold uppercase tracking-wider text-sm mb-6">Overall Mastery</h3>
-           <div className="relative w-48 h-48 flex items-center justify-center mb-6">
+      {/* Primary Metrics Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        {/* Overall Mastery Radial */}
+        <div className="lg:col-span-4 bg-white rounded-[2.5rem] p-10 flex flex-col items-center justify-center shadow-sm border border-outline-variant/5 relative overflow-hidden group">
+           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-transparent opacity-20" />
+           <h3 className="text-[10px] font-black text-primary uppercase tracking-[0.4em] mb-10">Institutional Mastery</h3>
+           
+           <div className="relative w-56 h-56 flex items-center justify-center mb-10">
               <svg className="w-full h-full transform -rotate-90">
-                <circle cx="96" cy="96" r="88" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-gray-100" />
-                <circle cx="96" cy="96" r="88" stroke="currentColor" strokeWidth="12" fill="transparent" 
-                        strokeDasharray={2 * Math.PI * 88} 
-                        strokeDashoffset={2 * Math.PI * 88 * (1 - (student.masteryPercent || 0) / 100)} 
-                        className="text-primary transition-all duration-1000 ease-out" />
+                <circle cx="112" cy="112" r="100" stroke="currentColor" strokeWidth="16" fill="transparent" className="text-surface-container" />
+                <circle cx="112" cy="112" r="100" stroke="currentColor" strokeWidth="16" strokeLinecap="round" fill="transparent" 
+                        strokeDasharray={2 * Math.PI * 100} 
+                        strokeDashoffset={2 * Math.PI * 100 * (1 - (student.masteryPercent || 0) / 100)} 
+                        className="text-primary transition-all duration-1000 ease-out drop-shadow-[0_0_8px_rgba(101,87,137,0.3)]" />
               </svg>
-              <span className="absolute text-5xl font-bold text-textPrimary">{student.masteryPercent || 0}%</span>
+              <div className="absolute flex flex-col items-center">
+                 <span className="text-6xl font-black text-on-surface tracking-tighter">{student.masteryPercent || 0}%</span>
+                 <span className="text-[10px] font-black text-primary uppercase tracking-widest opacity-40">Complete</span>
+              </div>
            </div>
            
-           <div className="w-full bg-blue-50 border border-blue-100 p-4 rounded-xl mt-4">
-             <h4 className="font-bold text-blue-800 text-sm mb-1 uppercase tracking-wide">Diagnosis Insights</h4>
-             <p className="text-sm text-blue-900 leading-relaxed">{insightText}</p>
+           <div className="w-full bg-primary/5 border border-primary/10 p-6 rounded-3xl relative">
+              <span className="material-symbols-outlined absolute top-4 right-4 text-primary/20">psychology</span>
+              <h4 className="font-black text-primary text-[10px] mb-2 uppercase tracking-widest">Clinical Insight</h4>
+              <p className="text-xs text-on-surface font-bold leading-relaxed">{stats.insight}</p>
            </div>
         </div>
-        
-        <div className="lg:col-span-2 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-               <div className="bg-success/10 py-3 px-4 border-b border-success/20">
-                 <h3 className="font-bold text-success flex items-center justify-between">Top Strengths <span className="text-xs bg-success text-white px-2 py-0.5 rounded-full">Top 3</span></h3>
-               </div>
-               <div className="p-4 space-y-3 bg-white">
-                 {strengths.length > 0 ? strengths.map((s, i) => (
-                   <div key={i} className="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-100">
-                     <span className="font-medium text-sm text-gray-800"><span className="text-gray-400 mr-2">{s.id}</span>{s.name}</span>
-                     <span className="text-success font-bold text-sm bg-success/10 px-2 py-0.5 rounded">{s.score}%</span>
+
+        {/* Strengths & Weaknesses Matrix */}
+        <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+           {/* Top Strengths */}
+           <div className="bg-white rounded-[2.5rem] p-8 border border-outline-variant/5 shadow-sm space-y-6">
+              <div className="flex items-center justify-between">
+                 <h3 className="text-xs font-black text-primary uppercase tracking-widest">Growth Anchors</h3>
+                 <span className="material-symbols-outlined text-success opacity-40">verified</span>
+              </div>
+              <div className="space-y-4">
+                 {stats.strengths.length > 0 ? stats.strengths.map((s, i) => (
+                   <div key={i} className="flex justify-between items-center bg-surface-container-low/50 p-4 rounded-2xl border border-outline-variant/5 group hover:bg-success/5 transition-colors">
+                     <span className="font-bold text-on-surface flex items-center gap-3">
+                        <span className="text-[10px] font-black text-primary opacity-30">{s.id}</span>
+                        {s.name}
+                     </span>
+                     <span className="text-success font-black text-sm bg-white px-3 py-1 rounded-full shadow-sm">{s.score}%</span>
                    </div>
-                 )) : <p className="text-sm text-gray-500">Not enough data.</p>}
-               </div>
-            </div>
-            
-            <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-               <div className="bg-danger/10 py-3 px-4 border-b border-danger/20">
-                 <h3 className="font-bold text-danger flex items-center justify-between">Top Weaknesses <span className="text-xs bg-danger text-white px-2 py-0.5 rounded-full">Top 3</span></h3>
-               </div>
-               <div className="p-4 space-y-3 bg-white">
-                 {weaknesses.length > 0 ? weaknesses.map((w, i) => (
-                   <div key={i} className="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-100">
-                     <span className="font-medium text-sm text-gray-800"><span className="text-gray-400 mr-2">{w.id}</span>{w.name}</span>
-                     <span className="text-danger font-bold text-sm bg-danger/10 px-2 py-0.5 rounded">{w.score}%</span>
+                 )) : <p className="text-sm text-on-surface-variant font-bold opacity-40 italic">Baseline pending...</p>}
+              </div>
+           </div>
+
+           {/* Top Weaknesses */}
+           <div className="bg-white rounded-[2.5rem] p-8 border border-outline-variant/5 shadow-sm space-y-6">
+              <div className="flex items-center justify-between">
+                 <h3 className="text-xs font-black text-error uppercase tracking-widest">Priority Blocks</h3>
+                 <span className="material-symbols-outlined text-error opacity-40">report</span>
+              </div>
+              <div className="space-y-4">
+                 {stats.weaknesses.length > 0 ? stats.weaknesses.map((w, i) => (
+                   <div key={i} className="flex justify-between items-center bg-surface-container-low/50 p-4 rounded-2xl border border-outline-variant/5 group hover:bg-error/5 transition-colors">
+                     <span className="font-bold text-on-surface flex items-center gap-3">
+                        <span className="text-[10px] font-black text-primary opacity-30">{w.id}</span>
+                        {w.name}
+                     </span>
+                     <span className="text-error font-black text-sm bg-white px-3 py-1 rounded-full shadow-sm">{w.score}%</span>
                    </div>
-                 )) : <p className="text-sm text-gray-500">Not enough data.</p>}
-               </div>
-            </div>
-          </div>
-          
-          <div className="bg-card border border-amber-200 rounded-xl p-5 shadow-sm bg-gradient-to-br from-amber-50 to-white">
-             <h3 className="font-bold text-warning mb-3 flex items-center gap-2">
-                <span className="bg-warning text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">!</span> Priority Domains for Intervention
-             </h3>
-             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-               {priorities.length > 0 ? priorities.map((p, i) => (
-                 <div key={i} className="bg-white border border-amber-100 rounded-lg p-3 shadow-sm shadow-amber-100/50">
-                    <div className="text-amber-800 font-bold mb-1">{p.id} - {p.name}</div>
-                    <div className="text-xs font-semibold text-amber-600 bg-amber-100 inline-block px-2 py-0.5 rounded">Score: {p.score}%</div>
-                 </div>
-               )) : <p className="text-sm text-gray-500">No domains below 40%.</p>}
-             </div>
-          </div>
+                 )) : <p className="text-sm text-on-surface-variant font-bold opacity-40 italic">No critical blocks identified.</p>}
+              </div>
+           </div>
+
+           {/* Priority Domains Strip */}
+           <div className="md:col-span-2 bg-surface-container-low rounded-[2.5rem] p-8 border border-outline-variant/10 shadow-sm relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-8 opacity-5">
+                 <span className="material-symbols-outlined text-[10rem]">priority_high</span>
+              </div>
+              <h3 className="text-xs font-black text-on-surface uppercase tracking-widest mb-6">Strategic Focus Intervals</h3>
+              <div className="flex flex-wrap gap-4 relative z-10">
+                {stats.priorities.length > 0 ? stats.priorities.map((p, i) => (
+                  <div key={i} className="bg-white border border-outline-variant/5 rounded-2xl px-6 py-4 shadow-sm hover:translate-y-[-2px] transition-transform cursor-pointer group">
+                     <div className="text-primary font-black text-xs group-hover:text-primary-dim">{p.id} - {p.name}</div>
+                     <div className="text-[9px] font-black text-on-surface-variant uppercase tracking-widest mt-1 opacity-40">Score: {p.score}%</div>
+                  </div>
+                )) : <p className="text-sm text-on-surface-variant font-bold opacity-40">Caseload normalization healthy.</p>}
+              </div>
+           </div>
         </div>
       </div>
 
-      <div className="mt-12">
-        <h2 className="text-2xl font-bold text-textPrimary mb-6">Detailed Domain Scores</h2>
-        <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-gray-50 text-gray-500 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-4 font-semibold uppercase tracking-wider w-16">ID</th>
-                  <th className="px-6 py-4 font-semibold uppercase tracking-wider">Domain</th>
-                  <th className="px-6 py-4 font-semibold uppercase tracking-wider w-32">Score</th>
-                  <th className="px-6 py-4 font-semibold uppercase tracking-wider">Progressive Indicator</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
-                {ABLLS_DOMAINS.map(domain => {
-                  let score = 0;
-                  if (student.domains && student.domains[domain.id]) {
-                    score = computeDomainScore(student.domains[domain.id]);
-                  }
-                  
-                  let barColor = 'bg-success';
-                  if (score < 40) barColor = 'bg-danger';
-                  else if (score < 70) barColor = 'bg-warning';
-                  
-                  return (
-                    <tr key={domain.id} className="hover:bg-gray-50/50 transition-colors">
-                      <td className="px-6 py-4 font-bold text-gray-500">{domain.id}</td>
-                      <td className="px-6 py-4 font-medium text-gray-800">{domain.name}</td>
-                      <td className="px-6 py-4 font-bold">
-                         <span className={score < 40 ? 'text-danger' : score < 70 ? 'text-warning' : 'text-success'}>{score}%</span>
-                      </td>
-                      <td className="px-6 py-4 w-full">
-                        <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden shadow-inner">
-                          <div className={`${barColor} h-2.5 rounded-full`} style={{ width: `${score}%` }}></div>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+      {/* Bottom Ledger Table */}
+      <section className="bg-white rounded-[3rem] shadow-sm border border-outline-variant/10 overflow-hidden">
+        <div className="p-8 border-b border-light px-10 flex items-center justify-between bg-surface-container-low/30">
+          <h3 className="text-xl font-black font-headline text-on-surface tracking-tighter">Clinical Ledger: {student.name}</h3>
+          <span className="text-[10px] font-black text-primary uppercase tracking-[0.4em] opacity-40">Node Audit v2.0</span>
         </div>
-      </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-surface-container-low/50 text-[10px] font-black text-primary uppercase tracking-widest">
+                <th className="px-10 py-6">Protocol ID</th>
+                <th className="px-10 py-6">Domain Category</th>
+                <th className="px-10 py-6 text-center">Score Delta</th>
+                <th className="px-10 py-6">Mastery Flux</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-outline-variant/10">
+              {ABLLS_DOMAINS.map(domain => {
+                const score = student.domains && student.domains[domain.id] ? computeDomainScore(student.domains[domain.id]) : 0;
+                let barColor = 'bg-primary';
+                if (score < 40) barColor = 'bg-error';
+                else if (score < 70) barColor = 'bg-secondary';
+                
+                return (
+                  <tr key={domain.id} className="hover:bg-primary/[0.02] transition-colors group">
+                    <td className="px-10 py-6">
+                       <span className="text-xs font-black text-primary bg-primary/5 px-2 py-1 rounded">{domain.id}</span>
+                    </td>
+                    <td className="px-10 py-6">
+                       <div className="flex flex-col">
+                          <span className="text-sm font-black text-on-surface">{domain.name}</span>
+                          <span className="text-[10px] font-bold text-on-surface-variant opacity-40 uppercase tracking-widest">{domain.category}</span>
+                       </div>
+                    </td>
+                    <td className="px-10 py-6 text-center">
+                       <span className={`text-xs font-black px-3 py-1 rounded-full ${score < 40 ? 'text-error bg-error/5' : score < 70 ? 'text-secondary bg-secondary/5' : 'text-primary bg-primary/5'}`}>
+                          {score}%
+                       </span>
+                    </td>
+                    <td className="px-10 py-6">
+                      <div className="flex items-center gap-4">
+                        <div className="flex-1 bg-surface-container-low rounded-full h-1.5 overflow-hidden shadow-inner">
+                          <div className={`${barColor} h-1.5 rounded-full transition-all duration-1000 group-hover:shadow-[0_0_8px_rgba(0,0,0,0.1)]`} style={{ width: `${score}%` }}></div>
+                        </div>
+                        <span className="material-symbols-outlined text-sm text-primary opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all">trending_flat</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
     </div>
   );
 };

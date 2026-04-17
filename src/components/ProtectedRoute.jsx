@@ -1,11 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useSearch } from '../context/SearchContext';
+import FeedbackModal from './FeedbackModal';
 
 const ProtectedRoute = ({ requiredRole }) => {
   const { user, logout } = useAuth();
+  const { searchQuery, setSearchQuery } = useSearch();
   const navigate = useNavigate();
   const location = useLocation();
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   if (!user) {
     return <Navigate to="/login" replace />;
@@ -15,66 +19,99 @@ const ProtectedRoute = ({ requiredRole }) => {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const isActive = (path) => location.pathname.includes(path);
+  const navItems = [
+    { id: 'overview', label: 'Overview', icon: 'dashboard', path: '/dashboard' },
+    { id: 'caseload', label: 'Caseload', icon: 'group', path: '/dashboard' },
+    { id: 'analytics', label: 'Analytics', icon: 'analytics', path: '/analytics' },
+  ];
 
   return (
-    <div className="bg-background text-on-surface min-h-screen flex font-body">
-      <aside className="h-screen w-72 flex-col fixed left-0 top-0 border-r border-primary/10 bg-[#f8f1fa] z-40 hidden md:flex py-8 space-y-2">
-        <div className="px-8 mb-8">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/dashboard')}>
-            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-              <span className="material-symbols-outlined text-on-primary">clinical_notes</span>
+    <div className="bg-surface text-on-surface min-h-screen flex font-body selection:bg-primary-container">
+      {/* SideNavBar: Dark Sanctuary Theme */}
+      <aside className="fixed left-0 h-full w-64 bg-[#34313a] flex flex-col py-8 gap-2 z-50 transition-all duration-300 shadow-2xl">
+        <div className="px-6 mb-12">
+          <div className="flex items-center gap-4 group cursor-pointer" onClick={() => navigate('/dashboard')}>
+            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-lg shadow-primary/20 transition-transform group-hover:scale-105">
+               <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>clinical_notes</span>
             </div>
             <div>
-              <h1 className="text-lg font-bold text-[#34313a] font-headline">Cognify</h1>
-              <p className="text-[10px] uppercase tracking-widest text-primary font-bold">Therapist Portal</p>
+              <h1 className="text-white font-black text-xl leading-none tracking-tighter">Cognify</h1>
+              <p className="text-[#cac4d0] text-[10px] font-black uppercase tracking-widest mt-1.5 opacity-60">Therapist Portal</p>
             </div>
           </div>
         </div>
-        <nav className="flex-grow">
-          <button onClick={() => navigate('/dashboard')} className={`${location.pathname === '/dashboard' || location.pathname === '/' ? 'bg-white text-[#6750A4] shadow-sm' : 'text-[#34313a]/70 hover:bg-white/50'} w-[calc(100%-1rem)] text-left rounded-full font-bold px-4 py-3 my-1 mx-2 flex items-center gap-3 transition-all`}>
-            <span className="material-symbols-outlined">dashboard</span>
-            <span className="font-label">Overview</span>
-          </button>
-          <button onClick={() => navigate('/student/new')} className={`${location.pathname.includes('/student/') ? 'bg-white text-[#6750A4] shadow-sm' : 'text-[#34313a]/70 hover:bg-white/50'} w-[calc(100%-1rem)] text-left rounded-full font-bold px-4 py-3 my-1 mx-2 flex items-center gap-3 transition-all`}>
-            <span className="material-symbols-outlined">person_add</span>
-            <span className="font-label">Add Student</span>
-          </button>
-          <button onClick={() => navigate('/survey')} className={`${location.pathname.includes('/survey') ? 'bg-white text-[#6750A4] shadow-sm' : 'text-[#34313a]/70 hover:bg-white/50'} w-[calc(100%-1rem)] text-left rounded-full font-bold px-4 py-3 my-1 mx-2 flex items-center gap-3 transition-all`}>
-            <span className="material-symbols-outlined">assignment</span>
-            <span className="font-label">Feedback Survey</span>
+
+        <nav className="flex-1 px-3 space-y-1">
+          {navItems.map((item) => {
+            const active = location.pathname === item.path;
+            return (
+              <button 
+                key={item.id}
+                onClick={() => navigate(item.path)}
+                className={`w-full flex items-center gap-4 px-5 py-3.5 rounded-full transition-all duration-300 group ${active ? 'bg-primary text-white shadow-lg shadow-primary/30 active:scale-95' : 'text-[#cac4d0] hover:bg-[#49454f] hover:text-white'}`}
+              >
+                <span className={`material-symbols-outlined text-xl ${active ? 'fill-1' : ''}`}>{item.icon}</span>
+                <span className="text-sm font-bold tracking-tight">{item.label}</span>
+                {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+              </button>
+            );
+          })}
+
+          <button 
+             onClick={() => setShowFeedbackModal(true)}
+             className="w-full flex items-center gap-4 px-5 py-3.5 rounded-full transition-all duration-300 group text-tertiary-container hover:bg-[#49454f] hover:text-white border border-transparent hover:border-tertiary/20 mt-4"
+          >
+             <span className="material-symbols-outlined text-xl">rate_review</span>
+             <span className="text-sm font-bold tracking-tight">System Feedback</span>
           </button>
         </nav>
-        <div className="mt-auto px-2 space-y-1">
-          <button onClick={logout} className="w-full text-left font-bold text-[#34313a]/70 px-4 py-3 my-1 flex items-center gap-3 hover:bg-white/50 rounded-full transition-all">
-            <span className="material-symbols-outlined">logout</span>
-            <span className="font-label">Sign Out</span>
-          </button>
+
+        <div className="px-4 mt-auto">
+          <div className="pt-6 border-t border-[#49454f]/50">
+            <button onClick={logout} className="w-full flex items-center gap-4 px-5 py-4 rounded-full text-[#cac4d0] hover:bg-error/10 hover:text-error transition-all duration-300">
+              <span className="material-symbols-outlined text-xl">logout</span>
+              <span className="text-sm font-bold tracking-tight">Sign Out</span>
+            </button>
+          </div>
         </div>
       </aside>
 
-      <main className="flex-1 md:ml-72 flex flex-col min-h-screen">
-        <header className="bg-[#fdf7fe]/80 backdrop-blur-lg fixed top-0 right-0 left-0 md:left-72 z-50 shadow-sm shadow-purple-500/5 px-6 py-3 flex justify-between items-center h-[68px]">
-          <div className="flex items-center gap-4 flex-1 max-w-xl">
-             {/* Search or utility bar could go here */}
+      {/* TopNavBar: Glassmorphism */}
+      <header className="fixed top-0 left-64 right-0 h-20 bg-surface/80 backdrop-blur-xl z-40 flex justify-between items-center px-10 border-b border-outline-variant/5">
+        <div className="flex items-center gap-8 flex-1">
+          <div className="relative w-full max-w-md group">
+            <span className="material-symbols-outlined absolute left-5 top-1/2 -translate-y-1/2 text-primary/40 group-focus-within:text-primary transition-colors">search</span>
+            <input 
+              type="text" 
+              placeholder="Search students, clinical notes..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-surface-container border-none rounded-full h-12 pl-14 pr-6 focus:ring-2 focus:ring-primary/20 text-sm font-bold placeholder:text-on-surface-variant/40 transition-all focus:bg-white shadow-sm"
+            />
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-3 pl-2">
-              <div className="text-right hidden sm:block">
-                <p className="text-xs font-bold text-on-surface">{user?.first_name} {user?.last_name}</p>
-                <p className="text-[10px] text-on-surface-variant capitalize">{user?.role} Access</p>
-              </div>
-              <div className="w-10 h-10 rounded-full object-cover border-2 border-primary-container bg-primary text-white flex items-center justify-center font-bold">
-                 {user?.first_name?.[0] || 'U'}
-              </div>
+        </div>
+
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4 pl-4 border-l border-outline-variant/10">
+            <div className="text-right hidden sm:block">
+              <p className="text-xs font-black text-on-surface tracking-tight leading-none mb-1">{user?.first_name} {user?.last_name}</p>
+              <p className="text-[10px] font-black text-primary uppercase tracking-widest opacity-60">Session Active</p>
+            </div>
+            <div className="w-10 h-10 rounded-2xl bg-primary-container text-on-primary-container flex items-center justify-center font-black text-xs shadow-sm shadow-primary/10 border border-primary/5">
+              {user?.first_name?.[0]}{user?.last_name?.[0]}
             </div>
           </div>
-        </header>
+        </div>
+      </header>
 
-        <section className="pt-24 pb-12 px-6 md:px-10 max-w-7xl mx-auto w-full flex-1">
+      {/* Main Content Area */}
+      <main className="ml-64 pt-20 flex-1 flex flex-col min-h-screen">
+        <section className="p-10 max-w-[1600px] mx-auto w-full flex-1">
            <Outlet />
         </section>
       </main>
+
+      {showFeedbackModal && <FeedbackModal onClose={() => setShowFeedbackModal(false)} />}
     </div>
   );
 };

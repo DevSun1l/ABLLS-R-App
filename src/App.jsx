@@ -9,7 +9,9 @@ import ProgressPage from './pages/ProgressPage';
 import InterventionPage from './pages/InterventionPage';
 import ReportPage from './pages/ReportPage';
 import GoalLibraryPage from './pages/GoalLibraryPage';
+import AnalyticsPage from './pages/AnalyticsPage';
 import SurveyPage from './pages/SurveyPage';
+import { SearchProvider } from './context/SearchContext';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminRoute from './components/AdminRoute';
 
@@ -45,28 +47,31 @@ const App = () => {
   }, [location.pathname]);
 
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      
-      <Route path="/" element={<ProtectedRoute />}>
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="student/new" element={<StudentProfilePage />} />
-        <Route path="student/:id" element={<StudentProfilePage />} />
-        <Route path="assessment/:id" element={<AssessmentPage />} />
-        <Route path="progress/:id" element={<ProgressPage />} />
-        <Route path="intervention/:id" element={<InterventionPage />} />
-        <Route path="report/:id" element={<ReportPage />} />
-        <Route path="survey" element={<SurveyPage />} />
-      </Route>
+    <SearchProvider>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        
+        <Route path="/" element={<ProtectedRoute />}>
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="student/new" element={<StudentProfilePage />} />
+          <Route path="student/:id" element={<StudentProfilePage />} />
+          <Route path="assessment/:id" element={<AssessmentPage />} />
+          <Route path="progress/:id" element={<ProgressPage />} />
+          <Route path="intervention/:id" element={<InterventionPage />} />
+          <Route path="report/:id" element={<ReportPage />} />
+          <Route path="survey" element={<SurveyPage />} />
+          <Route path="analytics" element={<AnalyticsPage />} />
+        </Route>
 
-      <Route path="/admin" element={<AdminRoute />}>
-        <Route index element={<AdminDashboard />} />
-        <Route path="goals" element={<GoalLibraryPage />} />
-      </Route>
+        <Route path="/admin" element={<AdminRoute />}>
+          <Route index element={<AdminDashboard />} />
+          <Route path="goals" element={<GoalLibraryPage />} />
+        </Route>
 
-      <Route path="*" element={<Navigate to="/login" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </SearchProvider>
   );
 };
 
