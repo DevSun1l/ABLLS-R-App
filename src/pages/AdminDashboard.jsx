@@ -659,13 +659,20 @@ const AdminDashboard = () => {
                                     </button>
                                 </div>
                             </div>
-                            <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/10">
-                                    <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1">Student Assets</p>
-                                    <p className="text-3xl font-black text-primary font-headline">{selectedUser.student_count || 0}</p>
-                                    <p className="text-[10px] text-on-surface-variant font-medium opacity-60 mt-1 uppercase">Under Management</p>
+                            <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/10">
+                                        <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1">Student Assets</p>
+                                        <p className="text-3xl font-black text-primary font-headline">{selectedUser.student_count || 0}</p>
+                                        <p className="text-[10px] text-on-surface-variant font-medium opacity-60 mt-1 uppercase">Under Management</p>
+                                    </div>
+                                    <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/10">
+                                        <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1">Assessments</p>
+                                        <p className="text-3xl font-black text-primary font-headline">{selectedUser.assessment_count || 0}</p>
+                                        <p className="text-[10px] text-on-surface-variant font-medium opacity-60 mt-1 uppercase">Tests Performed</p>
+                                    </div>
                                 </div>
-                                <div className="col-span-2 space-y-4">
+                                <div className="space-y-4">
                                     <h4 className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest px-2">Access History (Recent Logins)</h4>
                                     <div className="bg-surface-container-low rounded-2xl border border-outline-variant/10 h-48 overflow-y-auto">
                                         {(data.loginLogs || []).filter(l => l.user_id === selectedUser.id).length === 0 ? (
