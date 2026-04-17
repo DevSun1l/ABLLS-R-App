@@ -68,17 +68,25 @@ const AdminDashboard = () => {
     }, []);
 
     const timeAgo = (date) => {
-        const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+        if (!date) return '...';
+        const now = new Date();
+        // Replacing space with T for cross-browser ISO compatibility (e.g. Safari)
+        const past = new Date(String(date).replace(' ', 'T'));
+        const seconds = Math.floor((now - past) / 1000);
+        
         if (seconds < 5) return 'just now';
         if (seconds < 60) return `${seconds}s ago`;
+        
         const minutes = Math.floor(seconds / 60);
-        if (minutes < 60) {
-            const remSec = seconds % 60;
-            return `${minutes}m ${remSec}s ago`;
-        }
+        if (minutes < 60) return `${minutes}m ${seconds % 60}s ago`;
+        
         const hours = Math.floor(minutes / 60);
-        if (hours < 24) return `${hours}h ago`;
-        return new Date(date).toLocaleDateString();
+        if (hours < 24) return `${hours}h ${minutes % 60}m ago`;
+        
+        const days = Math.floor(hours / 24);
+        if (days < 7) return `${days}d ago`;
+        
+        return past.toLocaleDateString();
     };
 
     const handleInvite = async (e) => {
@@ -144,11 +152,17 @@ const AdminDashboard = () => {
 
     const getCombinedActivity = () => {
         const activities = [];
+        const parse = (d) => {
+            if (!d) return new Date();
+            const date = new Date(String(d).replace(' ', 'T'));
+            return isNaN(date.getTime()) ? new Date() : date;
+        };
+        
         data.users.forEach(u => {
             if (u.created_at) {
                 activities.push({
                     id: `u-${u.id}`,
-                    date: new Date(u.created_at),
+                    date: parse(u.created_at),
                     type: 'user',
                     icon: 'person_add',
                     color: 'bg-primary',
@@ -160,7 +174,7 @@ const AdminDashboard = () => {
             if (s.created_at) {
                 activities.push({
                     id: `s-${s.id}`,
-                    date: new Date(s.created_at),
+                    date: parse(s.created_at),
                     type: 'student',
                     icon: 'child_care',
                     color: 'bg-secondary',
@@ -172,7 +186,7 @@ const AdminDashboard = () => {
             if (a.created_at) {
                 activities.push({
                     id: `a-${a.id}`,
-                    date: new Date(a.created_at),
+                    date: parse(a.created_at),
                     type: 'assessment',
                     icon: 'check_circle',
                     color: 'bg-tertiary',
@@ -273,23 +287,28 @@ const AdminDashboard = () => {
                                     </div>
                                     {/* Bar Chart — Real-time system metrics */}
                                     {(() => {
-                                        // Time window based on selected filter
+                                        const parseDate = (d) => {
+                                            if (!d) return new Date(0);
+                                            if (d instanceof Date) return d;
+                                            return new Date(String(d).replace(' ', 'T'));
+                                        };
+
                                         const now = new Date();
                                         const cutoff = new Date(now);
                                         if (chartFilter === 'week') cutoff.setDate(now.getDate() - 7);
                                         else if (chartFilter === 'month') cutoff.setMonth(now.getMonth() - 1);
                                         else cutoff.setFullYear(now.getFullYear() - 1);
 
-                                        const inRange = (dateStr) => {
-                                            if (!dateStr) return false;
-                                            return new Date(dateStr) >= cutoff;
+                                        const inRange = (d) => {
+                                            if (!d) return false;
+                                            return parseDate(d) >= cutoff;
                                         };
 
-                                        const filteredUsers = data.users.filter(u => inRange(u.created_at));
-                                        const filteredStudents = data.students.filter(s => inRange(s.created_at));
-                                        const filteredAssessments = data.assessments.filter(a => inRange(a.created_at));
+                                        const filteredUsers = (data.users || []).filter(u => inRange(u.created_at));
+                                        const filteredStudents = (data.students || []).filter(s => inRange(s.created_at));
+                                        const filteredAssessments = (data.assessments || []).filter(a => inRange(a.created_at));
                                         const filteredAdmins = filteredUsers.filter(u => u.role === 'admin');
-                                        const filteredLogins = filteredUsers.length; // login accounts created in range
+                                        const filteredLogins = (data.loginLogs || []).filter(l => inRange(l.timestamp)).length;
 
                                         const periodLabel = chartFilter === 'week' ? 'This Week' : chartFilter === 'month' ? 'This Month' : 'This Year';
 

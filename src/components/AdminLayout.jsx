@@ -58,19 +58,15 @@ const AdminLayout = ({ children, activeTab, setActiveTab }) => {
         </div>
 
         <div className="flex items-center gap-4">
-          <button className="p-2 rounded-full hover:bg-surface-container-low transition-colors duration-300 text-on-surface-variant relative">
-            <span className="material-symbols-outlined">notifications</span>
-            <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full border-2 border-surface"></span>
-          </button>
-          <button className="p-2 rounded-full hover:bg-surface-container-low transition-colors duration-300 text-on-surface-variant">
-            <span className="material-symbols-outlined">settings</span>
-          </button>
+          <div className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest opacity-40">
+            Internal Access Node 01
+          </div>
         </div>
       </header>
 
       {/* SideNavBar */}
       <aside className="h-screen w-64 fixed left-0 top-16 bg-[#f8f1fa] flex flex-col py-6 z-40 border-r border-outline-variant/10">
-        <div className="px-6 mb-6">
+        <div className="px-6 mb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-on-primary shadow-lg shadow-primary/20">
               <span className="material-symbols-outlined">clinical_notes</span>
@@ -81,7 +77,7 @@ const AdminLayout = ({ children, activeTab, setActiveTab }) => {
             </div>
           </div>
         </div>
-        <nav className="flex-1 space-y-1 overflow-y-auto">
+        <nav className="flex-1 space-y-1 overflow-y-auto pt-8">
           {menuItems.map((item) => {
             const active = isItemActive(item);
             return (
@@ -103,7 +99,7 @@ const AdminLayout = ({ children, activeTab, setActiveTab }) => {
           })}
         </nav>
         
-        <div className="px-4 pb-6 mt-auto">
+        <div className="px-4 pb-14 mt-auto">
           <button 
             onClick={logout}
             className="w-full bg-primary text-on-primary shadow-lg shadow-primary/20 hover:bg-primary-dim transition-all duration-300 font-black text-[10px] uppercase tracking-widest py-4 px-6 rounded-full transform hover:-translate-y-1 flex items-center justify-center gap-3 active:scale-95"
