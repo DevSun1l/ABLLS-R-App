@@ -3,10 +3,11 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { GOAL_LIBRARY } from '../data/goalLibrary';
 import GoalLibraryItem from '../components/GoalLibraryItem';
+import AdminLayout from '../components/AdminLayout';
 import { v4 as uuidv4 } from 'uuid';
 
 const GoalLibraryPage = () => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [goals, setGoals] = useState([]);
   const [isAdding, setIsAdding] = useState(false);
@@ -39,7 +40,7 @@ const GoalLibraryPage = () => {
   };
 
   const handleDelete = (id) => {
-    if (window.confirm("Delete this goal? This cannot be undone.")) {
+    if (window.confirm("Delete this goal template? This action is irreversible.")) {
       const newGoals = goals.filter(g => g.id !== id);
       saveGoals(newGoals);
     }
@@ -68,93 +69,50 @@ const GoalLibraryPage = () => {
   };
 
   return (
-    <div className="bg-background text-on-surface min-h-screen flex font-body">
-      {/* Sidebar matching AdminDashboard! */}
-      <aside className="h-screen w-72 flex-col fixed left-0 top-0 border-r border-primary/10 bg-[#f8f1fa] z-40 hidden md:flex py-8 space-y-2">
-        <div className="px-8 mb-8">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-              <span className="material-symbols-outlined text-on-primary">clinical_notes</span>
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-[#34313a] font-headline">Cognify</h1>
-              <p className="text-[10px] uppercase tracking-widest text-primary font-bold">Admin Portal</p>
-            </div>
-          </div>
-        </div>
-        <nav className="flex-grow">
-          <button onClick={() => navigate('/admin', { state: { tab: 'overview' } })} className="w-[calc(100%-1rem)] text-left text-[#34313a]/70 hover:bg-white/50 rounded-full font-bold px-4 py-3 my-1 mx-2 flex items-center gap-3 transition-all">
-            <span className="material-symbols-outlined">dashboard</span>
-            <span className="font-label">Overview</span>
-          </button>
-          <button onClick={() => navigate('/admin', { state: { tab: 'users' } })} className="w-[calc(100%-1rem)] text-left text-[#34313a]/70 hover:bg-white/50 rounded-full font-bold px-4 py-3 my-1 mx-2 flex items-center gap-3 transition-all">
-            <span className="material-symbols-outlined">group</span>
-            <span className="font-label">User Access</span>
-          </button>
-          <button onClick={() => navigate('/admin', { state: { tab: 'organizations' } })} className="w-[calc(100%-1rem)] text-left text-[#34313a]/70 hover:bg-white/50 rounded-full font-bold px-4 py-3 my-1 mx-2 flex items-center gap-3 transition-all">
-            <span className="material-symbols-outlined">corporate_fare</span>
-            <span className="font-label">Organizations</span>
-          </button>
-          <button onClick={() => navigate('/admin', { state: { tab: 'data' } })} className="w-[calc(100%-1rem)] text-left text-[#34313a]/70 hover:bg-white/50 rounded-full font-bold px-4 py-3 my-1 mx-2 flex items-center gap-3 transition-all">
-            <span className="material-symbols-outlined">analytics</span>
-            <span className="font-label">Data & Backups</span>
-          </button>
-          <button className="bg-white text-[#6750A4] shadow-sm w-[calc(100%-1rem)] text-left px-4 py-3 my-1 mx-2 flex items-center gap-3 font-bold rounded-full transition-all">
-            <span className="material-symbols-outlined">menu_book</span>
-            <span className="font-label">Goal Library</span>
-          </button>
-        </nav>
-        <div className="mt-auto px-2 space-y-1">
-          <button onClick={logout} className="w-full text-left font-bold text-[#34313a]/70 px-4 py-3 my-1 flex items-center gap-3 hover:bg-white/50 rounded-full transition-all">
-            <span className="material-symbols-outlined">logout</span>
-            <span className="font-label">Sign Out</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Form Content */}
-      <main className="flex-1 md:ml-72 flex flex-col min-h-screen">
-        <header className="bg-[#fdf7fe]/80 backdrop-blur-lg fixed top-0 right-0 left-0 md:left-72 z-50 shadow-sm shadow-purple-500/5 px-6 py-3 flex justify-between items-center h-[68px]">
-          <div className="flex items-center gap-4 flex-1 max-w-xl"></div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-3 pl-2">
-              <div className="text-right hidden sm:block">
-                <p className="text-xs font-bold text-on-surface">Admin Dashboard</p>
-                <p className="text-[10px] text-on-surface-variant capitalize">{user?.role} Access</p>
-              </div>
-              <div className="w-10 h-10 rounded-full object-cover border-2 border-primary-container bg-primary text-white flex items-center justify-center font-bold">
-                 {user?.first_name?.[0] || 'A'}
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <section className="pt-24 pb-12 px-6 md:px-10 max-w-5xl mx-auto w-full flex-1">
-           <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+    <AdminLayout activeTab="goals">
+      <div className="p-6 min-h-[calc(100vh-4rem)]">
+        <section className="w-full flex-1">
+           <div className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-6 border-b border-outline-variant/10 pb-8">
              <div>
                <h1 className="text-4xl md:text-5xl font-black font-headline tracking-tight text-on-surface mb-2">Intervention Goal Library</h1>
-               <p className="text-lg text-on-surface-variant font-medium">Manage global intervention goal templates.</p>
+               <p className="text-lg text-on-surface-variant font-medium opacity-80">Curate and manage global clinical intervention templates.</p>
              </div>
              <button 
                onClick={() => setIsAdding(true)}
-               className="bg-primary hover:bg-primary-dim text-on-primary shadow-sm hover:shadow-md transition-all duration-300 font-bold py-3 px-6 rounded-full transform hover:-translate-y-0.5 flex items-center gap-2"
+               className="bg-primary hover:bg-primary-dim text-on-primary shadow-lg shadow-primary/20 transition-all duration-300 font-black text-xs uppercase tracking-[0.2em] py-5 px-10 rounded-full transform hover:-translate-y-1 flex items-center gap-3"
              >
-               <span className="material-symbols-outlined text-sm">add</span> Add goal
+               <span className="material-symbols-outlined">add</span> Create Goal
              </button>
            </div>
 
            {isAdding && (
-              <div className="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-8 shadow-sm mb-12">
-                 <h2 className="font-bold text-xl font-headline mb-6 text-on-surface border-b border-outline-variant/20 pb-4">Create Goal Template</h2>
-                 <form onSubmit={submitNewGoal} className="space-y-6">
-                    <div>
-                       <label className="block text-sm font-bold text-on-surface mb-2">Goal Title</label>
-                       <input type="text" required value={newGoal.title} onChange={e=>setNewGoal({...newGoal, title: e.target.value})} className="w-full bg-surface-container-high border-none p-3 rounded-lg focus:ring-2 focus:ring-primary/40 outline-none text-on-surface transition-all" placeholder="e.g. Will independently request desired items..." />
+              <div className="bg-surface-container-lowest border-2 border-primary/20 rounded-2xl p-10 shadow-xl mb-12 relative overflow-hidden group">
+                 <div className="absolute top-0 right-0 p-8 text-primary/5 -rotate-12 select-none group-hover:scale-110 transition-transform">
+                   <span className="material-symbols-outlined text-9xl">post_add</span>
+                 </div>
+                 <h2 className="font-black text-2xl font-headline mb-8 text-on-surface tracking-tight flex items-center gap-3">
+                    <span className="material-symbols-outlined text-primary">edit_document</span>
+                    New Clinical Template
+                 </h2>
+                 <form onSubmit={submitNewGoal} className="space-y-8 relative z-10">
+                    <div className="space-y-2">
+                       <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-primary ml-1">Goal Definition</label>
+                       <textarea 
+                        required 
+                        value={newGoal.title} 
+                        onChange={e=>setNewGoal({...newGoal, title: e.target.value})} 
+                        className="w-full bg-surface-container-high border-none p-5 rounded-2xl focus:ring-4 focus:ring-primary/10 outline-none text-on-surface font-medium transition-all min-h-[120px] resize-none" 
+                        placeholder="Define the clinical objective (e.g. Will independently initiate social requests...)" 
+                       />
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                       <div>
-                          <label className="block text-sm font-bold text-on-surface mb-2">Domain</label>
-                          <select value={newGoal.domain} onChange={e=>setNewGoal({...newGoal, domain: e.target.value})} className="w-full bg-surface-container-high border-none p-3 rounded-lg focus:ring-2 focus:ring-primary/40 outline-none text-on-surface transition-all cursor-pointer">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                       <div className="space-y-2">
+                          <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-primary ml-1">Clinical Domain</label>
+                          <select 
+                            value={newGoal.domain} 
+                            onChange={e=>setNewGoal({...newGoal, domain: e.target.value})} 
+                            className="w-full bg-surface-container-high border-none p-4 rounded-2xl focus:ring-4 focus:ring-primary/10 outline-none text-on-surface font-bold transition-all cursor-pointer appearance-none"
+                          >
                              <option>Communication / Language</option>
                              <option>Social Skills</option>
                              <option>Academic / Classroom Skills</option>
@@ -162,53 +120,97 @@ const GoalLibraryPage = () => {
                              <option>Motor Skills</option>
                           </select>
                        </div>
-                       <div>
-                          <label className="block text-sm font-bold text-on-surface mb-2">Skill Level</label>
-                          <select value={newGoal.skillLevel} onChange={e=>setNewGoal({...newGoal, skillLevel: e.target.value})} className="w-full bg-surface-container-high border-none p-3 rounded-lg focus:ring-2 focus:ring-primary/40 outline-none text-on-surface transition-all cursor-pointer">
+                       <div className="space-y-2">
+                          <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-primary ml-1">Target Mastery Level</label>
+                          <select 
+                            value={newGoal.skillLevel} 
+                            onChange={e=>setNewGoal({...newGoal, skillLevel: e.target.value})} 
+                            className="w-full bg-surface-container-high border-none p-4 rounded-2xl focus:ring-4 focus:ring-primary/10 outline-none text-on-surface font-bold transition-all cursor-pointer appearance-none"
+                          >
                              <option>Basic</option>
                              <option>Intermediate</option>
                              <option>Advanced</option>
                           </select>
                        </div>
                     </div>
-                    <div>
-                       <label className="block text-sm font-bold text-on-surface mb-3">Target Diagnoses</label>
-                       <div className="flex flex-wrap gap-2">
-                          {["ASD", "ADHD", "DD", "All"].map(d => (
-                             <button type="button" key={d} onClick={() => toggleDiag(d)} className={`px-4 py-2 text-sm font-bold rounded-full transition-all border ${newGoal.diagnoses.includes(d) ? 'bg-primary text-on-primary border-primary shadow-sm hover:bg-primary-dim' : 'bg-surface-container-high text-on-surface-variant border-transparent hover:bg-surface-variant'}`}>
+                    <div className="space-y-3">
+                       <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-primary ml-1">Target Diagnoses</label>
+                       <div className="flex flex-wrap gap-3">
+                          {["ASD", "ADHD", "DD", "SPD", "All"].map(d => (
+                             <button 
+                                type="button" 
+                                key={d} 
+                                onClick={() => toggleDiag(d)} 
+                                className={`px-6 py-3 text-[10px] font-black uppercase tracking-widest rounded-full transition-all border-2 ${
+                                    newGoal.diagnoses.includes(d) 
+                                        ? 'bg-primary text-on-primary border-primary shadow-lg shadow-primary/20 scale-105' 
+                                        : 'bg-surface-container-high text-on-surface-variant border-transparent hover:bg-surface-variant hover:scale-105'
+                                }`}
+                             >
                                 {d}
                              </button>
                           ))}
                        </div>
                     </div>
-                    <div className="flex justify-end gap-3 pt-6 border-t border-outline-variant/20">
-                       <button type="button" onClick={() => setIsAdding(false)} className="px-6 py-2.5 font-bold text-on-surface-variant hover:text-on-surface bg-surface-container hover:bg-surface-variant rounded-full transition-colors">Cancel</button>
-                       <button type="submit" className="px-6 py-2.5 font-bold text-on-primary bg-primary rounded-full hover:bg-primary-dim transition-colors shadow-sm">Save Template</button>
+                    <div className="flex justify-end gap-4 pt-8 border-t border-outline-variant/10 mt-8">
+                       <button 
+                        type="button" 
+                        onClick={() => setIsAdding(false)} 
+                        className="px-8 py-4 font-black text-xs uppercase tracking-widest text-on-surface-variant hover:text-on-surface bg-surface-container-high hover:bg-surface-variant rounded-full transition-all"
+                       >
+                            Cancel
+                        </button>
+                       <button 
+                        type="submit" 
+                        className="px-10 py-4 font-black text-xs uppercase tracking-widest text-on-primary bg-primary rounded-full hover:bg-primary-dim transition-all shadow-lg shadow-primary/20 active:scale-95"
+                       >
+                            Finalize Template
+                       </button>
                     </div>
                  </form>
               </div>
            )}
 
-           {["Communication / Language", "Social Skills", "Academic / Classroom Skills", "Self-Help / Daily Living", "Motor Skills"].map(domain => {
-              const domainGoals = goals.filter(g => g.domain === domain);
-              if (domainGoals.length === 0) return null;
-              return (
-                 <div key={domain} className="mb-10 bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10">
-                    <h2 className="text-xl font-bold font-headline text-on-surface mb-6 flex items-center border-b border-outline-variant/20 pb-4">
-                      {domain} 
-                      <span className="text-xs font-bold text-primary bg-primary-container px-3 py-1 rounded-full ml-3">{domainGoals.length} templates</span>
-                    </h2>
-                    <div className="flex flex-col gap-4">
-                       {domainGoals.map(goal => (
-                          <GoalLibraryItem key={goal.id} goal={goal} onUpdate={handleUpdate} onDelete={handleDelete} />
-                       ))}
+           <div className="space-y-12">
+            {["Communication / Language", "Social Skills", "Academic / Classroom Skills", "Self-Help / Daily Living", "Motor Skills"].map(domain => {
+                const domainGoals = goals.filter(g => g.domain === domain);
+                if (domainGoals.length === 0) return null;
+                const domainIcon = {
+                    "Communication / Language": "forum",
+                    "Social Skills": "groups",
+                    "Academic / Classroom Skills": "school",
+                    "Self-Help / Daily Living": "wash",
+                    "Motor Skills": "directions_run"
+                }[domain] || "folder";
+
+                return (
+                    <div key={domain} className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <h2 className="text-xl font-black font-headline text-on-surface mb-8 flex items-center justify-between bg-surface-container-low px-8 py-4 rounded-2xl border border-outline-variant/10">
+                            <div className="flex items-center gap-4">
+                                <span className="material-symbols-outlined text-primary">{domainIcon}</span>
+                                <span>{domain}</span>
+                            </div>
+                            <span className="text-[10px] font-black text-primary bg-primary-container/40 border border-primary/10 px-4 py-1.5 rounded-full uppercase tracking-wider">
+                                {domainGoals.length} protocol templates
+                            </span>
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {domainGoals.map(goal => (
+                                <GoalLibraryItem 
+                                    key={goal.id} 
+                                    goal={goal} 
+                                    onUpdate={handleUpdate} 
+                                    onDelete={handleDelete} 
+                                />
+                            ))}
+                        </div>
                     </div>
-                 </div>
-              );
-           })}
+                );
+            })}
+           </div>
         </section>
-      </main>
-    </div>
+      </div>
+    </AdminLayout>
   );
 };
 

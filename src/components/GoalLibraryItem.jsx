@@ -1,60 +1,94 @@
 import React, { useState } from 'react';
 
 const GoalLibraryItem = ({ goal, onUpdate, onDelete }) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [title, setTitle] = useState(goal.title);
-  
-  const handleSave = () => {
-    onUpdate({ ...goal, title });
-    setIsEditing(false);
-  };
+    const [isEditing, setIsEditing] = useState(false);
+    const [editData, setEditData] = useState({ ...goal });
 
-  if (isEditing) {
+    const handleSave = () => {
+        onUpdate(editData);
+        setIsEditing(false);
+    };
+
+    if (isEditing) {
+        return (
+            <div className="bg-white border-2 border-primary rounded-2xl p-6 shadow-xl transition-all h-full flex flex-col gap-4">
+                <div className="flex justify-between items-start mb-2">
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Edit Template #{goal.id.split('_').pop()}</span>
+                    <button onClick={() => setIsEditing(false)} className="text-on-surface-variant hover:text-on-surface">
+                        <span className="material-symbols-outlined text-sm">close</span>
+                    </button>
+                </div>
+                <textarea 
+                    value={editData.title} 
+                    onChange={e => setEditData({...editData, title: e.target.value})}
+                    className="w-full bg-surface-container-high border-none p-3 rounded-lg text-sm font-medium focus:ring-2 focus:ring-primary/40 outline-none min-h-[100px] resize-none"
+                />
+                <div className="grid grid-cols-2 gap-3">
+                    <select 
+                        value={editData.skillLevel} 
+                        onChange={e => setEditData({...editData, skillLevel: e.target.value})}
+                        className="bg-surface-container-high border-none p-2 rounded-lg text-xs font-bold focus:ring-2 focus:ring-primary/40 outline-none"
+                    >
+                        <option>Basic</option>
+                        <option>Intermediate</option>
+                        <option>Advanced</option>
+                    </select>
+                    <div className="flex justify-end gap-2">
+                        <button onClick={handleSave} className="bg-primary text-on-primary px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-primary-dim transition-colors">Save</button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    const levelColors = {
+        'Basic': 'bg-tertiary-container/30 text-on-tertiary-container border-tertiary/10',
+        'Intermediate': 'bg-primary-container/30 text-on-primary-container border-primary/10',
+        'Advanced': 'bg-secondary-container/30 text-on-secondary-container border-secondary/10'
+    };
+
     return (
-      <div className="bg-surface-container-high border-2 border-primary/50 rounded-2xl p-5 shadow-sm mb-4">
-        <div className="mb-4">
-           <input 
-             className="w-full bg-white border border-primary/30 rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary/60 focus:border-primary outline-none transition-all font-semibold text-on-surface"
-             value={title}
-             onChange={(e) => setTitle(e.target.value)}
-             autoFocus
-           />
-        </div>
-        <div className="flex gap-3 justify-end items-center">
-           <button onClick={() => setIsEditing(false)} className="px-5 py-2 text-sm font-bold bg-surface-container hover:bg-surface-variant rounded-full flex items-center gap-2 text-on-surface-variant transition-colors">
-             <span className="material-symbols-outlined text-[18px]">close</span> Cancel
-           </button>
-           <button onClick={handleSave} className="px-5 py-2 text-sm font-bold bg-primary text-on-primary rounded-full hover:bg-primary-dim flex items-center gap-2 shadow-sm transition-colors">
-             <span className="material-symbols-outlined text-[18px]">check</span> Save
-           </button>
-        </div>
-      </div>
-    );
-  }
+        <div className="group bg-surface-container-lowest border border-outline-variant/20 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300 relative overflow-hidden flex flex-col justify-between h-full">
+            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                <span className="material-symbols-outlined text-6xl">clinical_notes</span>
+            </div>
+            
+            <div className="relative z-10">
+                <div className="flex justify-between items-start mb-4">
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${levelColors[goal.skillLevel] || levelColors.Basic}`}>
+                        {goal.skillLevel}
+                    </span>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => setIsEditing(true)} className="w-8 h-8 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-on-primary flex items-center justify-center transition-all">
+                            <span className="material-symbols-outlined text-[16px]">edit</span>
+                        </button>
+                        <button onClick={() => onDelete(goal.id)} className="w-8 h-8 rounded-full bg-error/10 text-error hover:bg-error hover:text-on-error flex items-center justify-center transition-all">
+                            <span className="material-symbols-outlined text-[16px]">delete</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <p className="text-on-surface font-bold text-sm leading-relaxed mb-4 line-clamp-3 group-hover:line-clamp-none transition-all">
+                    {goal.title}
+                </p>
+            </div>
 
-  return (
-    <div className="bg-white border-2 border-primary/30 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-primary/60 transition-all mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 group">
-      <div>
-        <h4 className="font-bold text-on-surface mb-3 leading-tight text-lg">{goal.title}</h4>
-        <div className="flex flex-wrap gap-2 text-xs font-bold">
-          <span className="bg-surface-container-high text-on-surface-variant px-3 py-1 rounded-full border border-outline-variant/20">{goal.domain}</span>
-          <span className="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full">Level: {goal.skillLevel}</span>
-          {(goal.diagnoses || []).map(d => (
-            <span key={d} className="bg-tertiary-container text-on-tertiary-container px-3 py-1 rounded-full">{d}</span>
-          ))}
+            <div className="flex items-center justify-between border-t border-outline-variant/10 pt-4 mt-auto">
+                <div className="flex items-center gap-2">
+                    {goal.diagnoses?.map(d => (
+                        <span key={d} className="text-[10px] font-black text-on-surface-variant/60 uppercase tracking-widest">
+                            {d}
+                        </span>
+                    ))}
+                    {(!goal.diagnoses || goal.diagnoses.length === 0) && <span className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-widest italic">Global</span>}
+                </div>
+                <div className="flex items-center gap-1.5 text-[10px] font-black text-primary uppercase tracking-widest">
+                    <span className="material-symbols-outlined text-[14px]">local_activity</span>
+                    Protocol Template
+                </div>
+            </div>
         </div>
-      </div>
-      
-      <div className="flex items-center gap-2 self-end md:self-auto shrink-0 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-        <button onClick={() => setIsEditing(true)} className="p-2.5 text-on-surface-variant hover:text-primary hover:bg-primary-container rounded-full transition-colors flex items-center justify-center">
-          <span className="material-symbols-outlined text-[20px]">edit</span>
-        </button>
-        <button onClick={() => onDelete(goal.id)} className="p-2.5 text-on-surface-variant hover:text-error hover:bg-error-container rounded-full transition-colors flex items-center justify-center">
-          <span className="material-symbols-outlined text-[20px]">delete</span>
-        </button>
-      </div>
-    </div>
-  );
+    );
 };
 
 export default GoalLibraryItem;

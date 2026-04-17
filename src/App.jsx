@@ -11,6 +11,7 @@ import ReportPage from './pages/ReportPage';
 import GoalLibraryPage from './pages/GoalLibraryPage';
 import SurveyPage from './pages/SurveyPage';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminRoute from './components/AdminRoute';
 
 const APP_NAME = 'Cognify Care';
 
@@ -59,7 +60,7 @@ const App = () => {
         <Route path="survey" element={<SurveyPage />} />
       </Route>
 
-      <Route path="/admin" element={<ProtectedRoute requiredRole="admin" />}>
+      <Route path="/admin" element={<AdminRoute />}>
         <Route index element={<AdminDashboard />} />
         <Route path="goals" element={<GoalLibraryPage />} />
       </Route>
