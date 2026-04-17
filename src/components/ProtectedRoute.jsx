@@ -21,7 +21,7 @@ const ProtectedRoute = ({ requiredRole }) => {
     <div className="bg-background text-on-surface min-h-screen flex font-body">
       <aside className="h-screen w-72 flex-col fixed left-0 top-0 border-r border-primary/10 bg-[#f8f1fa] z-40 hidden md:flex py-8 space-y-2">
         <div className="px-8 mb-8">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/dashboard')}>
             <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
               <span className="material-symbols-outlined text-on-primary">clinical_notes</span>
             </div>
