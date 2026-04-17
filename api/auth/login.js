@@ -16,12 +16,25 @@ export default async function handler(req, res) {
      }
      
      const user = result.rows[0];
+
+     if (user.status === 'blocked') {
+        return res.status(403).json({ 
+           error: 'YOUR ACCOUNT HAS BEEN BLOCKED FOR SUSPICION OF VIOLATING THE GUIDELINES OF THE APP. PLEASE CONTACT helpdesk@cognifycareteam.com for more info' 
+        });
+     }
+
      const isValid = await verifyPassword(password, user.password_hash);
      
      if (!isValid) {
         return res.status(401).json({error: 'Invalid credentials'});
      }
      
+     // Log login activity
+     await db.execute({
+        sql: "INSERT INTO activity_logs (user_id, action, details) VALUES (?, ?, ?)",
+        args: [user.id, 'login', JSON.stringify({ ip: req.headers['x-forwarded-for'] || 'local' })]
+     });
+
      const token = generateToken(user);
      return res.status(200).json({ 
         token, 

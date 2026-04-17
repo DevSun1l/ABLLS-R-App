@@ -31,6 +31,7 @@ async function setup() {
       last_name TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'therapist',
       org_id TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (org_id) REFERENCES organizations(id)
     );

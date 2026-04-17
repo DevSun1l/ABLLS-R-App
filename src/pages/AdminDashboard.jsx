@@ -7,10 +7,18 @@ const AdminDashboard = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
-    const [data, setData] = useState({ users: [], students: [], assessments: [] });
+    const [data, setData] = useState({ users: [], students: [], assessments: [], loginLogs: [] });
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState(location.state?.tab || 'overview');
     const [chartFilter, setChartFilter] = useState('month');
+    const [tick, setTick] = useState(0);
+
+    // Modal States
+    const [showInviteModal, setShowInviteModal] = useState(false);
+    const [showUserModal, setShowUserModal] = useState(false);
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [inviteForm, setInviteForm] = useState({ email: '', firstName: '', lastName: '', role: 'therapist' });
+    const [processing, setProcessing] = useState(false);
 
     const fetchAdminData = async () => {
         try {
@@ -38,17 +46,80 @@ const AdminDashboard = () => {
     useEffect(() => {
         fetchAdminData();
         const interval = setInterval(fetchAdminData, 30000);
-        return () => clearInterval(interval);
+        const tickInterval = setInterval(() => setTick(t => t + 1), 1000); // Live updates every second
+        return () => {
+            clearInterval(interval);
+            clearInterval(tickInterval);
+        };
     }, []);
 
     const timeAgo = (date) => {
         const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+        if (seconds < 5) return 'just now';
         if (seconds < 60) return `${seconds}s ago`;
         const minutes = Math.floor(seconds / 60);
-        if (minutes < 60) return `${minutes}m ago`;
+        if (minutes < 60) {
+            const remSec = seconds % 60;
+            return `${minutes}m ${remSec}s ago`;
+        }
         const hours = Math.floor(minutes / 60);
         if (hours < 24) return `${hours}h ago`;
         return new Date(date).toLocaleDateString();
+    };
+
+    const handleInvite = async (e) => {
+        e.preventDefault();
+        setProcessing(true);
+        try {
+            const token = sessionStorage.getItem('ablls_token');
+            const res = await fetch('/api/admin/invite', {
+                method: 'POST',
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(inviteForm)
+            });
+            if (res.ok) {
+                setShowInviteModal(false);
+                setInviteForm({ email: '', firstName: '', lastName: '', role: 'therapist' });
+                fetchAdminData();
+            } else {
+                const err = await res.json();
+                alert(err.error || 'Failed to invite user');
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+    const handleToggleBlock = async (userToUpdate) => {
+        const newStatus = userToUpdate.status === 'blocked' ? 'active' : 'blocked';
+        setProcessing(true);
+        try {
+            const token = sessionStorage.getItem('ablls_token');
+            const res = await fetch('/api/admin/update-user', {
+                method: 'PATCH',
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ userId: userToUpdate.id, status: newStatus })
+            });
+            if (res.ok) {
+                // Update local state for immediate feedback if possible, or just refresh
+                fetchAdminData();
+                if (selectedUser?.id === userToUpdate.id) {
+                    setSelectedUser({ ...userToUpdate, status: newStatus });
+                }
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setProcessing(false);
+        }
     };
 
     const formatTimestamp = (date) => {
@@ -374,7 +445,10 @@ const AdminDashboard = () => {
                                 <h2 className="text-4xl font-black font-headline text-on-surface tracking-tight">User Access Management</h2>
                                 <p className="text-on-surface-variant mt-2 font-medium">Control institutional access and role configurations.</p>
                             </div>
-                            <button className="bg-primary text-on-primary shadow-lg shadow-primary/20 hover:bg-primary-dim transition-all duration-300 font-black text-xs uppercase tracking-widest py-4 px-8 rounded-full transform hover:-translate-y-1 flex items-center gap-3">
+                            <button 
+                                onClick={() => setShowInviteModal(true)}
+                                className="bg-primary text-on-primary shadow-lg shadow-primary/20 hover:bg-primary-dim transition-all duration-300 font-black text-xs uppercase tracking-widest py-4 px-8 rounded-full transform hover:-translate-y-1 flex items-center gap-3"
+                            >
                                 <span className="material-symbols-outlined">person_add</span> Invite Faculty
                             </button>
                         </div>
@@ -388,6 +462,8 @@ const AdminDashboard = () => {
                                             <th className="px-6 py-4">Identity</th>
                                             <th className="px-6 py-4">Contact</th>
                                             <th className="px-6 py-4">Protocol Role</th>
+                                            <th className="px-6 py-4">Status</th>
+                                            <th className="px-6 py-4">Students</th>
                                             <th className="px-6 py-4 text-right">Settings</th>
                                         </tr>
                                     </thead>
@@ -405,8 +481,21 @@ const AdminDashboard = () => {
                                                 <td className="px-6 py-4">
                                                     <span className="bg-primary-container/40 text-primary px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-primary/10">{u.role}</span>
                                                 </td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-primary/10 ${u.status === 'blocked' ? 'bg-error/10 text-error border-error/20' : 'bg-tertiary-container/40 text-tertiary border-tertiary/10'}`}>
+                                                        {u.status || 'active'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 font-mono text-[10px] font-bold text-on-surface">
+                                                    {u.student_count || 0}
+                                                </td>
                                                 <td className="px-6 py-4 text-right">
-                                                    <button className="text-primary font-black text-[10px] uppercase tracking-widest hover:bg-primary/5 px-4 py-2 rounded-full transition-all">Manage</button>
+                                                    <button 
+                                                        onClick={() => { setSelectedUser(u); setShowUserModal(true); }}
+                                                        className="text-primary font-black text-[10px] uppercase tracking-widest hover:bg-primary/5 px-4 py-2 rounded-full transition-all"
+                                                    >
+                                                        Manage
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))}
@@ -463,6 +552,143 @@ const AdminDashboard = () => {
                                 <span className="material-symbols-outlined">download</span> Snapshot Matrix
                             </button>
                             <span className="material-symbols-outlined absolute -right-16 -bottom-16 text-[200px] text-primary/5 -rotate-12 transition-transform group-hover:scale-110">database</span>
+                        </div>
+                    </div>
+                )}
+                {/* Invite Modal */}
+                {showInviteModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+                        <div className="bg-surface-container-lowest w-full max-w-lg rounded-3xl shadow-2xl border border-outline-variant/20 overflow-hidden animate-in zoom-in-95 duration-300">
+                            <div className="p-8 pb-0 flex justify-between items-start">
+                                <div>
+                                    <h3 className="text-2xl font-black font-headline text-on-surface tracking-tight">Invite Faculty</h3>
+                                    <p className="text-on-surface-variant text-sm font-medium opacity-70">Provision a new clinical access node.</p>
+                                </div>
+                                <button onClick={() => setShowInviteModal(false)} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-high transition-colors text-on-surface-variant">
+                                    <span className="material-symbols-outlined">close</span>
+                                </button>
+                            </div>
+                            <form onSubmit={handleInvite} className="p-8 space-y-5">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-primary ml-4">First Name</label>
+                                        <input 
+                                            required
+                                            className="w-full bg-surface-container-high border-none rounded-full h-12 px-6 text-sm font-bold focus:ring-2 focus:ring-primary transition-all"
+                                            value={inviteForm.firstName}
+                                            onChange={e => setInviteForm({...inviteForm, firstName: e.target.value})}
+                                            placeholder="John"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-primary ml-4">Last Name</label>
+                                        <input 
+                                            required
+                                            className="w-full bg-surface-container-high border-none rounded-full h-12 px-6 text-sm font-bold focus:ring-2 focus:ring-primary transition-all"
+                                            value={inviteForm.lastName}
+                                            onChange={e => setInviteForm({...inviteForm, lastName: e.target.value})}
+                                            placeholder="Doe"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-primary ml-4">Email Identity</label>
+                                    <input 
+                                        required
+                                        type="email"
+                                        className="w-full bg-surface-container-high border-none rounded-full h-12 px-6 text-sm font-bold focus:ring-2 focus:ring-primary transition-all"
+                                        value={inviteForm.email}
+                                        onChange={e => setInviteForm({...inviteForm, email: e.target.value})}
+                                        placeholder="john.doe@cognifycare.com"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-primary ml-4">Access Protocol (Role)</label>
+                                    <div className="flex gap-2">
+                                        {['therapist', 'teacher', 'admin'].map(r => (
+                                            <button 
+                                                key={r}
+                                                type="button"
+                                                onClick={() => setInviteForm({...inviteForm, role: r})}
+                                                className={`flex-1 h-12 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${inviteForm.role === r ? 'bg-primary text-on-primary border-primary shadow-md' : 'bg-surface-container-high text-on-surface-variant border-transparent'}`}
+                                            >
+                                                {r}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="pt-4">
+                                    <button 
+                                        type="submit"
+                                        disabled={processing}
+                                        className="w-full bg-primary text-on-primary h-14 rounded-full font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-primary/20 hover:bg-primary-dim transition-all active:scale-95 flex items-center justify-center gap-3"
+                                    >
+                                        {processing ? <div className="w-5 h-5 border-2 border-on-primary border-t-transparent animate-spin rounded-full" /> : 'Execute Invitation'}
+                                    </button>
+                                    <p className="text-[10px] text-center mt-4 text-on-surface-variant font-bold opacity-60 uppercase tracking-widest">Default temporary password will be: <span className="text-primary italic">Cognify2026</span></p>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {/* User Detail Modal */}
+                {showUserModal && selectedUser && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+                        <div className="bg-surface-container-lowest w-full max-w-2xl rounded-3xl shadow-2xl border border-outline-variant/20 overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
+                            <div className="p-8 flex justify-between items-start border-b border-outline-variant/10">
+                                <div className="flex items-center gap-5">
+                                    <div className="w-16 h-16 rounded-full bg-primary-container text-primary flex items-center justify-center text-xl font-black shadow-inner">
+                                        {selectedUser.first_name?.[0]}{selectedUser.last_name?.[0]}
+                                    </div>
+                                    <div>
+                                        <h3 className="text-2xl font-black font-headline text-on-surface tracking-tight">{selectedUser.first_name} {selectedUser.last_name}</h3>
+                                        <p className="text-on-surface-variant text-sm font-medium italic opacity-70">{selectedUser.email}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <button 
+                                        onClick={() => handleToggleBlock(selectedUser)}
+                                        disabled={processing}
+                                        className={`px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${selectedUser.status === 'blocked' ? 'bg-error text-on-error border-error shadow-lg shadow-error/20' : 'bg-surface-container-high text-error border-error/20 hover:bg-error/5'}`}
+                                    >
+                                        {selectedUser.status === 'blocked' ? 'Unblock Node' : 'Block Access'}
+                                    </button>
+                                    <button onClick={() => setShowUserModal(false)} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-high transition-colors text-on-surface-variant">
+                                        <span className="material-symbols-outlined">close</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/10">
+                                    <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1">Student Assets</p>
+                                    <p className="text-3xl font-black text-primary font-headline">{selectedUser.student_count || 0}</p>
+                                    <p className="text-[10px] text-on-surface-variant font-medium opacity-60 mt-1 uppercase">Under Management</p>
+                                </div>
+                                <div className="col-span-2 space-y-4">
+                                    <h4 className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest px-2">Access History (Recent Logins)</h4>
+                                    <div className="bg-surface-container-low rounded-2xl border border-outline-variant/10 h-48 overflow-y-auto">
+                                        {(data.loginLogs || []).filter(l => l.user_id === selectedUser.id).length === 0 ? (
+                                            <div className="h-full flex items-center justify-center text-on-surface-variant/40 italic text-xs">No login records found</div>
+                                        ) : (
+                                            <div className="divide-y divide-outline-variant/10">
+                                                {(data.loginLogs || []).filter(l => l.user_id === selectedUser.id).map(log => (
+                                                    <div key={log.id} className="p-4 flex justify-between items-center group">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-2 h-2 rounded-full bg-primary"></div>
+                                                            <div>
+                                                                <p className="text-xs font-bold text-on-surface uppercase tracking-tight">System Authentication</p>
+                                                                <p className="text-[10px] text-on-surface-variant font-medium opacity-60">{new Date(log.timestamp).toLocaleString()}</p>
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-[9px] font-black text-primary bg-primary/10 px-2 py-1 rounded italic h-min">{timeAgo(log.timestamp)}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
