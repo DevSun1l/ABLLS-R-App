@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Pencil, Trash2, Check, X } from 'lucide-react';
 
 const GoalLibraryItem = ({ goal, onUpdate, onDelete }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -12,21 +11,21 @@ const GoalLibraryItem = ({ goal, onUpdate, onDelete }) => {
 
   if (isEditing) {
     return (
-      <div className="bg-card border border-border rounded-xl p-4 shadow-sm mb-3">
-        <div className="mb-3">
+      <div className="bg-surface-container-high border-2 border-primary/50 rounded-2xl p-5 shadow-sm mb-4">
+        <div className="mb-4">
            <input 
-             className="w-full border border-gray-300 rounded p-2 text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+             className="w-full bg-white border border-primary/30 rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary/60 focus:border-primary outline-none transition-all font-semibold text-on-surface"
              value={title}
              onChange={(e) => setTitle(e.target.value)}
              autoFocus
            />
         </div>
-        <div className="flex gap-2 justify-end">
-           <button onClick={() => setIsEditing(false)} className="px-3 py-1 text-sm bg-gray-100 rounded hover:bg-gray-200 flex items-center gap-1 text-gray-700">
-             <X className="w-4 h-4"/> Cancel
+        <div className="flex gap-3 justify-end items-center">
+           <button onClick={() => setIsEditing(false)} className="px-5 py-2 text-sm font-bold bg-surface-container hover:bg-surface-variant rounded-full flex items-center gap-2 text-on-surface-variant transition-colors">
+             <span className="material-symbols-outlined text-[18px]">close</span> Cancel
            </button>
-           <button onClick={handleSave} className="px-3 py-1 text-sm bg-primary text-white rounded hover:bg-primary/90 flex items-center gap-1">
-             <Check className="w-4 h-4"/> Save
+           <button onClick={handleSave} className="px-5 py-2 text-sm font-bold bg-primary text-on-primary rounded-full hover:bg-primary-dim flex items-center gap-2 shadow-sm transition-colors">
+             <span className="material-symbols-outlined text-[18px]">check</span> Save
            </button>
         </div>
       </div>
@@ -34,24 +33,24 @@ const GoalLibraryItem = ({ goal, onUpdate, onDelete }) => {
   }
 
   return (
-    <div className="bg-card border border-border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow mb-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="bg-white border-2 border-primary/30 rounded-2xl p-6 shadow-sm hover:shadow-md hover:border-primary/60 transition-all mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 group">
       <div>
-        <h4 className="font-semibold text-textPrimary mb-2 leading-tight">{goal.title}</h4>
-        <div className="flex flex-wrap gap-2 text-xs">
-          <span className="bg-gray-100 text-gray-700 font-medium px-2 py-0.5 rounded-full border border-gray-200">{goal.domain}</span>
-          <span className="bg-blue-50 text-blue-700 font-medium px-2 py-0.5 rounded-full border border-blue-200">Level: {goal.skillLevel}</span>
+        <h4 className="font-bold text-on-surface mb-3 leading-tight text-lg">{goal.title}</h4>
+        <div className="flex flex-wrap gap-2 text-xs font-bold">
+          <span className="bg-surface-container-high text-on-surface-variant px-3 py-1 rounded-full border border-outline-variant/20">{goal.domain}</span>
+          <span className="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full">Level: {goal.skillLevel}</span>
           {(goal.diagnoses || []).map(d => (
-            <span key={d} className="bg-purple-50 text-purple-700 font-medium px-2 py-0.5 rounded-full border border-purple-200">{d}</span>
+            <span key={d} className="bg-tertiary-container text-on-tertiary-container px-3 py-1 rounded-full">{d}</span>
           ))}
         </div>
       </div>
       
-      <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
-        <button onClick={() => setIsEditing(true)} className="p-2 text-gray-500 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors border border-transparent">
-          <Pencil className="w-4 h-4" />
+      <div className="flex items-center gap-2 self-end md:self-auto shrink-0 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+        <button onClick={() => setIsEditing(true)} className="p-2.5 text-on-surface-variant hover:text-primary hover:bg-primary-container rounded-full transition-colors flex items-center justify-center">
+          <span className="material-symbols-outlined text-[20px]">edit</span>
         </button>
-        <button onClick={() => onDelete(goal.id)} className="p-2 text-gray-500 hover:text-danger hover:bg-danger/10 rounded-lg transition-colors border border-transparent">
-          <Trash2 className="w-4 h-4" />
+        <button onClick={() => onDelete(goal.id)} className="p-2.5 text-on-surface-variant hover:text-error hover:bg-error-container rounded-full transition-colors flex items-center justify-center">
+          <span className="material-symbols-outlined text-[20px]">delete</span>
         </button>
       </div>
     </div>

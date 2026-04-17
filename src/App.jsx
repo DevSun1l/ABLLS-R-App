@@ -10,6 +10,7 @@ import InterventionPage from './pages/InterventionPage';
 import ReportPage from './pages/ReportPage';
 import GoalLibraryPage from './pages/GoalLibraryPage';
 import SurveyPage from './pages/SurveyPage';
+import AdminDashboard from './pages/AdminDashboard';
 
 const App = () => {
   return (
@@ -29,6 +30,7 @@ const App = () => {
       </Route>
 
       <Route path="/admin" element={<ProtectedRoute requiredRole="admin" />}>
+        <Route index element={<AdminDashboard />} />
         <Route path="goals" element={<GoalLibraryPage />} />
       </Route>
 

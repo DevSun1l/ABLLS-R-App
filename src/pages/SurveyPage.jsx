@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import SurveyForm from '../components/SurveyForm';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const SurveyPage = () => {
   const [submitted, setSubmitted] = useState(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const handleSurveySubmit = (data) => {
     const rawData = sessionStorage.getItem('ablls_surveys');
@@ -25,7 +27,7 @@ const SurveyPage = () => {
            <h2 className="text-3xl font-bold text-textPrimary mb-3 tracking-tight">Thank you for your feedback!</h2>
            <p className="text-textSecondary mb-8 text-lg">Your input helps us improve the ABLLS-R portal for all specialists.</p>
            <button 
-             onClick={() => navigate('/dashboard')}
+             onClick={() => navigate(user?.role === 'admin' ? '/admin' : '/dashboard')}
              className="bg-primary text-white font-bold px-8 py-3.5 rounded-lg hover:bg-primary/90 transition-all shadow-md active:scale-95"
            >
              Return to Dashboard

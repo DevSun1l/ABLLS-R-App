@@ -24,17 +24,27 @@ const StudentProfilePage = () => {
 
   useEffect(() => {
     if (!isNew) {
-      const rawData = sessionStorage.getItem('ablls_students');
-      if (rawData) {
-        const students = JSON.parse(rawData);
-        const student = students.find(s => s.id === id);
-        if (student) {
-           setFormData({
-              ...student,
-              diagnoses: student.diagnoses || []
-           });
+      const fetchStudent = async () => {
+        try {
+          const token = sessionStorage.getItem('ablls_token');
+          const res = await fetch(`/api/students/get?id=${id}`, {
+             headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+             const data = await res.json();
+             setFormData({
+                ...data.student,
+                ageYears: data.student.age_years,
+                ageMonths: data.student.age_months,
+                diagnoses: data.student.diagnoses || [],
+                assessor: user?.first_name || ''
+             });
+          }
+        } catch (e) {
+          console.error("Failed to load student", e);
         }
-      }
+      };
+      fetchStudent();
     }
   }, [id, isNew]);
 
@@ -47,30 +57,25 @@ const StudentProfilePage = () => {
     }));
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    const rawData = sessionStorage.getItem('ablls_students');
-    let students = rawData ? JSON.parse(rawData) : [];
-    
-    let targetId = id;
-    if (isNew) {
-      targetId = uuidv4();
-      const newStudent = {
-        ...formData,
-        id: targetId,
-        createdBy: user.email,
-        domains: {}
-      };
-      students.push(newStudent);
-    } else {
-      const index = students.findIndex(s => s.id === id);
-      if (index !== -1) {
-        students[index] = { ...students[index], ...formData };
-      }
+    let targetId = id || uuidv4();
+    try {
+       const token = sessionStorage.getItem('ablls_token');
+       const res = await fetch('/api/students/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({
+             id: targetId,
+             ...formData
+          })
+       });
+       if (res.ok) {
+          navigate(`/assessment/${targetId}`);
+       }
+    } catch(err) {
+       console.error("Failed to save student", err);
     }
-    
-    sessionStorage.setItem('ablls_students', JSON.stringify(students));
-    navigate(`/assessment/${targetId}`);
   };
 
   return (

@@ -1,37 +1,60 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { ABLLS_DOMAINS } from '../data/ablls';
 
-const DomainProgressBar = ({ currentDomainId, studentDomains }) => {
+const DomainProgressBar = ({ currentDomainId, studentDomains, onSelectDomain }) => {
+  const containerRef = useRef(null);
+
+  // Find the highest domain index that has been scored
+  let highestScoredIndex = -1;
+  ABLLS_DOMAINS.forEach((d, i) => {
+     if (studentDomains && studentDomains[d.id] && Object.keys(studentDomains[d.id].skills || {}).length > 0) {
+        highestScoredIndex = i;
+     }
+  });
+
+  const visibleUntilIndex = Math.max(highestScoredIndex + 1, ABLLS_DOMAINS.findIndex(d => d.id === currentDomainId));
+
+  useEffect(() => {
+    if (containerRef.current) {
+        const activeEl = containerRef.current.querySelector('.domain-active');
+        if (activeEl) {
+           activeEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        }
+    }
+  }, [currentDomainId]);
+
   return (
-    <div className="w-full overflow-x-auto pb-4 hide-scrollbar">
-      <div className="flex space-x-2 min-w-max px-2">
-        {ABLLS_DOMAINS.map((domain) => {
+    <div ref={containerRef} className="w-full overflow-x-auto pb-4 hide-scrollbar">
+      <div className="flex space-x-3 min-w-max px-2 items-center">
+        {ABLLS_DOMAINS.map((domain, index) => {
           const isActive = currentDomainId === domain.id;
           const status = studentDomains?.[domain.id];
+          const isVisible = index <= visibleUntilIndex;
           
-          // Determine color:
-          // grey = not started, blue = active, green = done, red = skipped
-          let bgColor = 'bg-gray-200 text-gray-500'; // Default not started
+          if (!isVisible) return null; // shift to visibility as test progresses
+
+          let bgColor = 'bg-surface-container-low text-on-surface-variant shadow-sm border border-outline-variant/10';
           if (isActive) {
-             bgColor = 'bg-info text-white ring-2 ring-info ring-offset-2';
+             bgColor = 'domain-active bg-primary text-on-primary ring-4 ring-primary-container shadow-md scale-110 z-10';
           } else if (status) {
              const allNotAssessed = Object.values(status.skills || {}).every(s => s === "not_assessed");
              const someScored = Object.keys(status.skills || {}).length > 0;
              if (allNotAssessed && someScored) {
-                bgColor = 'bg-danger text-white opacity-70'; // skipped
+                bgColor = 'bg-error text-on-error shadow-sm'; // skipped
              } else if (someScored) {
-                bgColor = 'bg-success text-white'; // done
+                bgColor = 'bg-secondary text-on-secondary shadow-sm'; // done
              }
           }
 
           return (
-            <div 
+            <button 
               key={domain.id} 
-              className={`flex items-center justify-center w-10 h-10 rounded-full font-bold text-sm shrink-0 transition-all ${bgColor}`}
+              onClick={() => onSelectDomain(index)}
+              className={`flex items-center justify-center w-11 h-11 rounded-full font-extrabold text-sm shrink-0 transition-all duration-300 cursor-pointer hover:scale-105 hover:-translate-y-1 ${bgColor}`}
               title={domain.name}
             >
               {domain.id}
-            </div>
+            </button>
           );
         })}
       </div>

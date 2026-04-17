@@ -9,18 +9,41 @@ const ProgressPage = () => {
   const [student, setStudent] = useState(null);
 
   useEffect(() => {
-    const rawData = sessionStorage.getItem('ablls_students');
-    if (rawData) {
-      const students = JSON.parse(rawData);
-      const target = students.find(s => s.id === id);
-      if (target) {
-        // Compute mastery and save
-        const mastery = computeOverallMastery(target);
-        target.masteryPercent = mastery;
-        setStudent(target);
-        sessionStorage.setItem('ablls_students', JSON.stringify(students.map(s => s.id === id ? target : s)));
+    const fetchData = async () => {
+      try {
+        const token = sessionStorage.getItem('ablls_token');
+        let foundStudent = { id, name: "Current Student" };
+        
+        if (token) {
+           const stuRes = await fetch(`/api/students/get?id=${id}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+           });
+           if (stuRes.ok) {
+              const stuData = await stuRes.json();
+              foundStudent = { ...foundStudent, ...stuData.student, name: stuData.student.name };
+           }
+
+           const res = await fetch(`/api/assessments/load?studentId=${id}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+           });
+           const result = await res.json();
+           if (result.assessment) {
+              foundStudent.domains = result.assessment.domain_data || {};
+           } else {
+              foundStudent.domains = {};
+           }
+        } else {
+           foundStudent.domains = {};
+        }
+
+        const mastery = computeOverallMastery(foundStudent);
+        foundStudent.masteryPercent = mastery;
+        setStudent(foundStudent);
+      } catch(e) {
+         console.error(e);
       }
-    }
+    };
+    fetchData();
   }, [id]);
 
   if (!student) return <div className="p-8 text-center text-textSecondary text-lg font-medium">Loading progress data...</div>;
