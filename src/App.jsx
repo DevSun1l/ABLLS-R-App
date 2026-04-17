@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, matchPath } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
@@ -12,7 +12,37 @@ import GoalLibraryPage from './pages/GoalLibraryPage';
 import SurveyPage from './pages/SurveyPage';
 import AdminDashboard from './pages/AdminDashboard';
 
+const APP_NAME = 'Cognify Care';
+
+const getPageTitle = (pathname) => {
+  const routeTitles = [
+    { pattern: '/login', title: 'Login' },
+    { pattern: '/dashboard', title: 'Dashboard' },
+    { pattern: '/student/new', title: 'New Student' },
+    { pattern: '/student/:id', title: 'Student Profile' },
+    { pattern: '/assessment/:id', title: 'Assessment' },
+    { pattern: '/progress/:id', title: 'Progress' },
+    { pattern: '/intervention/:id', title: 'Intervention' },
+    { pattern: '/report/:id', title: 'Report' },
+    { pattern: '/survey', title: 'Survey' },
+    { pattern: '/admin', title: 'Admin Dashboard' },
+    { pattern: '/admin/goals', title: 'Goal Library' },
+  ];
+
+  const matchedRoute = routeTitles.find(({ pattern }) =>
+    Boolean(matchPath({ path: pattern, end: true }, pathname))
+  );
+
+  return matchedRoute ? `${matchedRoute.title} | ${APP_NAME}` : APP_NAME;
+};
+
 const App = () => {
+  const location = useLocation();
+
+  React.useEffect(() => {
+    document.title = getPageTitle(location.pathname);
+  }, [location.pathname]);
+
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
