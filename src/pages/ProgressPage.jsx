@@ -122,53 +122,53 @@ const ProgressPage = () => {
         {/* Strengths & Weaknesses Matrix */}
         <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-8">
            {/* Top Strengths */}
-           <div className="bg-white rounded-[2.5rem] p-8 border border-outline-variant/5 shadow-sm space-y-6">
+           <div className="bg-gradient-to-br from-success/10 via-white to-success/5 rounded-[2.5rem] p-8 border border-success/15 shadow-sm space-y-6">
               <div className="flex items-center justify-between">
-                 <h3 className="text-xs font-black text-primary uppercase tracking-widest">Growth Anchors</h3>
+                 <h3 className="text-xs font-black text-success uppercase tracking-widest">Growth Anchors</h3>
                  <span className="material-symbols-outlined text-success opacity-40">verified</span>
               </div>
               <div className="space-y-4">
                  {stats.strengths.length > 0 ? stats.strengths.map((s, i) => (
-                   <div key={i} className="flex justify-between items-center bg-surface-container-low/50 p-4 rounded-2xl border border-outline-variant/5 group hover:bg-success/5 transition-colors">
+                   <div key={i} className="flex justify-between items-center bg-white/90 p-4 rounded-2xl border border-success/10 group hover:bg-success/10 transition-colors">
                      <span className="font-bold text-on-surface flex items-center gap-3">
-                        <span className="text-[10px] font-black text-primary opacity-30">{s.id}</span>
+                        <span className="text-[10px] font-black text-success opacity-60">{s.id}</span>
                         {s.name}
                      </span>
-                     <span className="text-success font-black text-sm bg-white px-3 py-1 rounded-full shadow-sm">{s.score}%</span>
+                     <span className="text-success font-black text-sm bg-success/10 px-3 py-1 rounded-full shadow-sm">{s.score}%</span>
                    </div>
                  )) : <p className="text-sm text-on-surface-variant font-bold opacity-40 italic">Baseline pending...</p>}
               </div>
            </div>
 
            {/* Top Weaknesses */}
-           <div className="bg-white rounded-[2.5rem] p-8 border border-outline-variant/5 shadow-sm space-y-6">
+           <div className="bg-gradient-to-br from-error/10 via-white to-error/5 rounded-[2.5rem] p-8 border border-error/15 shadow-sm space-y-6">
               <div className="flex items-center justify-between">
                  <h3 className="text-xs font-black text-error uppercase tracking-widest">Priority Blocks</h3>
                  <span className="material-symbols-outlined text-error opacity-40">report</span>
               </div>
               <div className="space-y-4">
                  {stats.weaknesses.length > 0 ? stats.weaknesses.map((w, i) => (
-                   <div key={i} className="flex justify-between items-center bg-surface-container-low/50 p-4 rounded-2xl border border-outline-variant/5 group hover:bg-error/5 transition-colors">
+                   <div key={i} className="flex justify-between items-center bg-white/90 p-4 rounded-2xl border border-error/10 group hover:bg-error/10 transition-colors">
                      <span className="font-bold text-on-surface flex items-center gap-3">
-                        <span className="text-[10px] font-black text-primary opacity-30">{w.id}</span>
+                        <span className="text-[10px] font-black text-error opacity-60">{w.id}</span>
                         {w.name}
                      </span>
-                     <span className="text-error font-black text-sm bg-white px-3 py-1 rounded-full shadow-sm">{w.score}%</span>
+                     <span className="text-error font-black text-sm bg-error/10 px-3 py-1 rounded-full shadow-sm">{w.score}%</span>
                    </div>
                  )) : <p className="text-sm text-on-surface-variant font-bold opacity-40 italic">No critical blocks identified.</p>}
               </div>
            </div>
 
            {/* Priority Domains Strip */}
-           <div className="md:col-span-2 bg-surface-container-low rounded-[2.5rem] p-8 border border-outline-variant/10 shadow-sm relative overflow-hidden">
+           <div className="md:col-span-2 bg-gradient-to-br from-secondary/10 via-white to-tertiary/10 rounded-[2.5rem] p-8 border border-secondary/15 shadow-sm relative overflow-hidden">
               <div className="absolute top-0 right-0 p-8 opacity-5">
                  <span className="material-symbols-outlined text-[10rem]">priority_high</span>
               </div>
               <h3 className="text-xs font-black text-on-surface uppercase tracking-widest mb-6">Strategic Focus Intervals</h3>
               <div className="flex flex-wrap gap-4 relative z-10">
                 {stats.priorities.length > 0 ? stats.priorities.map((p, i) => (
-                  <div key={i} className="bg-white border border-outline-variant/5 rounded-2xl px-6 py-4 shadow-sm hover:translate-y-[-2px] transition-transform cursor-pointer group">
-                     <div className="text-primary font-black text-xs group-hover:text-primary-dim">{p.id} - {p.name}</div>
+                  <div key={i} className="bg-white/90 border border-secondary/10 rounded-2xl px-6 py-4 shadow-sm hover:translate-y-[-2px] transition-transform cursor-pointer group">
+                     <div className="text-secondary font-black text-xs group-hover:text-secondary">{p.id} - {p.name}</div>
                      <div className="text-[9px] font-black text-on-surface-variant uppercase tracking-widest mt-1 opacity-40">Score: {p.score}%</div>
                   </div>
                 )) : <p className="text-sm text-on-surface-variant font-bold opacity-40">Caseload normalization healthy.</p>}

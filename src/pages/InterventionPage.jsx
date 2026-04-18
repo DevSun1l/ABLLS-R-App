@@ -1,58 +1,22 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
 import { getMatchingGoals } from '../utils/goalMatcher';
 import { ABLLS_DOMAINS } from '../data/ablls';
 import { getTopWeaknesses } from '../utils/scoring';
 import SmartGoalCard from '../components/SmartGoalCard';
 import { Layers, Download } from 'lucide-react';
-import html2pdf from 'html2pdf.js';
+import { useAuth } from '../context/AuthContext';
+import { exportInterventionPlanPdf } from '../utils/pdfExport';
 
 const InterventionPage = () => {
   const { id } = useParams();
-  const navigate = useNavigate();
+  const { user } = useAuth();
   const [student, setStudent] = useState(null);
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const reportRef = useRef(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const rawData = sessionStorage.getItem('ablls_students');
-        let foundStudent = rawData ? JSON.parse(rawData).find(s => s.id === id) : null;
-        if (!foundStudent) foundStudent = { id, name: "Current Student" };
-        
-        const token = sessionStorage.getItem('ablls_token');
-        if (token) {
-           const res = await fetch(`/api/assessments/load?studentId=${id}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-           });
-           const result = await res.json();
-           
-           if (result.assessment) {
-              foundStudent.domains = result.assessment.domain_data || {};
-              if (result.assessment.smart_goals) {
-                 const parsed = result.assessment.smart_goals;
-                 setGoals(typeof parsed === 'string' ? JSON.parse(parsed) : parsed);
-                 setStudent(foundStudent);
-                 setLoading(false);
-                 return;
-              }
-           } else {
-              foundStudent.domains = {};
-           }
-        }
-        setStudent(foundStudent);
-        generateGoals(foundStudent);
-      } catch(e) {
-         console.error(e);
-      }
-    };
-    fetchData();
-  }, [id]);
-
-  const generateGoals = async (targetStudent) => {
+  const generateGoals = useCallback(async (targetStudent) => {
     setLoading(true);
     setError(null);
     try {
@@ -91,22 +55,69 @@ const InterventionPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const rawData = sessionStorage.getItem('ablls_students');
+        let foundStudent = rawData ? JSON.parse(rawData).find((s) => s.id === id) : null;
+        if (!foundStudent) foundStudent = { id, name: 'Current Student' };
+
+        const token = sessionStorage.getItem('ablls_token');
+        if (token) {
+          const studentRes = await fetch(`/api/students/get?id=${id}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (studentRes.ok) {
+            const studentResult = await studentRes.json();
+            if (studentResult.student) {
+              foundStudent = {
+                ...foundStudent,
+                ...studentResult.student,
+                name: studentResult.student.name || foundStudent.name,
+              };
+            }
+          }
+
+          const res = await fetch(`/api/assessments/load?studentId=${id}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const result = await res.json();
+
+          if (result.assessment) {
+            foundStudent.domains = result.assessment.domain_data || {};
+            if (result.assessment.smart_goals) {
+              const parsed = result.assessment.smart_goals;
+              setGoals(typeof parsed === 'string' ? JSON.parse(parsed) : parsed);
+              setStudent(foundStudent);
+              setLoading(false);
+              return;
+            }
+          } else {
+            foundStudent.domains = {};
+          }
+        }
+
+        setStudent(foundStudent);
+        generateGoals(foundStudent);
+      } catch (e) {
+        console.error(e);
+        setError('Failed to load the intervention plan.');
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [generateGoals, id]);
 
   const handleRegenerate = () => {
     if (student) generateGoals(student);
   };
 
   const handleExportPDF = () => {
-     const element = reportRef.current;
-     const opt = {
-       margin: 1,
-       filename: `${student?.name}_intervention_plan.pdf`,
-       image: { type: 'jpeg', quality: 0.98 },
-       html2canvas: { scale: 2 },
-       jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-     };
-     html2pdf().set(opt).from(element).save();
+     const authorName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'Therapist / Teacher';
+     exportInterventionPlanPdf(student, goals, authorName);
   };
 
   if (!student) return <div className="p-8 text-center text-textSecondary text-lg font-medium">Loading student...</div>;
@@ -159,11 +170,23 @@ const InterventionPage = () => {
         </div>
       </div>
 
-      <div ref={reportRef} className="grid grid-cols-1 gap-6 bg-white p-4 sm:p-0">
-         <div className="print-header hidden mb-6 border-b pb-4">
-            <h1 className="text-2xl font-bold">ABLLS-R Intervention Plan</h1>
-            <p className="text-gray-500">Student: {student.name}</p>
-            <p className="text-gray-500">Generated: {new Date().toLocaleDateString()}</p>
+      <div className="grid grid-cols-1 gap-6 bg-white p-4 sm:p-0">
+         <div className="rounded-[2rem] border border-primary/10 bg-gradient-to-br from-primary/10 via-white to-tertiary/10 p-6 sm:p-8">
+            <h2 className="text-2xl font-black text-textPrimary tracking-tight">Intervention Plan Summary</h2>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl bg-white/90 p-4 border border-primary/10">
+                <p className="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Heading</p>
+                <p className="mt-2 text-sm font-bold text-textPrimary">Cognify Care Intervention Plan</p>
+              </div>
+              <div className="rounded-2xl bg-white/90 p-4 border border-secondary/10">
+                <p className="text-[10px] font-black uppercase tracking-[0.25em] text-secondary">Therapist / Teacher</p>
+                <p className="mt-2 text-sm font-bold text-textPrimary">{[user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'Not provided'}</p>
+              </div>
+              <div className="rounded-2xl bg-white/90 p-4 border border-tertiary/10">
+                <p className="text-[10px] font-black uppercase tracking-[0.25em] text-tertiary">Student</p>
+                <p className="mt-2 text-sm font-bold text-textPrimary">{student.name}</p>
+              </div>
+            </div>
          </div>
          {goals.map((goal, index) => (
            <SmartGoalCard key={index} index={index + 1} goal={goal} />

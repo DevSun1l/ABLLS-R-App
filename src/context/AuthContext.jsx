@@ -6,27 +6,45 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const refreshUser = async () => {
+    const token = sessionStorage.getItem('ablls_token');
+    if (!token) {
+      setUser(null);
+      return null;
+    }
+
+    try {
+      const res = await fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setUser(data.user);
+        return data.user;
+      }
+
+      sessionStorage.removeItem('ablls_token');
+      setUser(null);
+      return null;
+    } catch (e) {
+      console.error('Auth verification failed', e);
+      return null;
+    }
+  };
+
   useEffect(() => {
     const checkAuth = async () => {
-      const token = sessionStorage.getItem('ablls_token');
-      if (token) {
-        try {
-          const res = await fetch('/api/auth/me', {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (res.ok) {
-            const data = await res.json();
-            setUser(data.user);
-          } else {
-            sessionStorage.removeItem('ablls_token');
-          }
-        } catch(e) {
-          console.error("Auth verification failed", e);
-        }
-      }
+      await refreshUser();
       setLoading(false);
     };
     checkAuth();
+
+    const interval = setInterval(() => {
+      refreshUser();
+    }, 15000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const login = async (email, password) => {
@@ -73,7 +91,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, logout, refreshUser }}>
       {!loading && children}
     </AuthContext.Provider>
   );

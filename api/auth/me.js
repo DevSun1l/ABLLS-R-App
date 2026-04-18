@@ -9,7 +9,7 @@ export default async function handler(req, res) {
 
      const db = getDb();
      const result = await db.execute({
-        sql: "SELECT id, email, first_name, last_name, role, org_id FROM users WHERE id = ?",
+        sql: "SELECT id, email, first_name, last_name, role, org_id, status FROM users WHERE id = ?",
         args: [decoded.id]
      });
      

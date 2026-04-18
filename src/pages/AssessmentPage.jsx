@@ -3,17 +3,18 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ABLLS_DOMAINS } from '../data/ablls';
 import DomainProgressBar from '../components/DomainProgressBar';
 import ScoreButton from '../components/ScoreButton';
-import { useAuth } from '../context/AuthContext';
 
 const AssessmentPage = () => {
   const { id } = useParams(); // student id
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [student, setStudent] = useState(null);
   const [assessmentData, setAssessmentData] = useState({});
   const [domainIndex, setDomainIndex] = useState(0);
   const [showGatewayModal, setShowGatewayModal] = useState(false);
+  const [showNoPatternModal, setShowNoPatternModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [, setNoStreak] = useState(0);
+  const NO_STREAK_LIMIT = 5;
   
   useEffect(() => {
     const fetchData = async () => {
@@ -82,6 +83,7 @@ const AssessmentPage = () => {
     const newSkills = { ...newDomains[currentDomain.id].skills };
     
     if (isGateway && value === 'no') {
+      setNoStreak(prev => prev + 1);
       setShowGatewayModal(true);
       newSkills[skillCode] = value;
       newDomains[currentDomain.id].skills = newSkills;
@@ -92,6 +94,18 @@ const AssessmentPage = () => {
     newSkills[skillCode] = value;
     newDomains[currentDomain.id].skills = newSkills;
     autoSaveToDB(newDomains);
+
+    if (value === 'no') {
+      setNoStreak(prev => {
+        const next = prev + 1;
+        if (next >= NO_STREAK_LIMIT) {
+          setShowNoPatternModal(true);
+        }
+        return next;
+      });
+    } else {
+      setNoStreak(0);
+    }
   };
 
   const handleGatewaySkip = () => {
@@ -99,10 +113,11 @@ const AssessmentPage = () => {
     const newDomains = { ...assessmentData };
     const newSkills = { ...newDomains[currentDomain.id].skills };
     currentSkills.forEach((skill, idx) => {
-       if (idx > 0) newSkills[skill.code] = 'not_assessed';
+       if (idx > 0 && !newSkills[skill.code]) newSkills[skill.code] = 'no';
     });
     newDomains[currentDomain.id].skills = newSkills;
     autoSaveToDB(newDomains);
+    setNoStreak(0);
     handleNextDomain();
   };
 
@@ -115,9 +130,38 @@ const AssessmentPage = () => {
     autoSaveToDB(newDomains);
   };
 
+  const handleManualContinue = () => {
+    setShowNoPatternModal(false);
+    setNoStreak(0);
+  };
+
+  const handleAutofillRemainingNo = () => {
+    const newDomains = { ...assessmentData };
+    const currentIndexMap = currentSkills.findIndex((skill) => !currentDomainData.skills[skill.code]);
+    const startIndex = currentIndexMap >= 0 ? currentIndexMap : 0;
+
+    if (!newDomains[currentDomain.id]) {
+      newDomains[currentDomain.id] = { skills: {} };
+    }
+
+    const domainSkills = { ...newDomains[currentDomain.id].skills };
+    currentSkills.forEach((skill, index) => {
+      if (index >= startIndex && !domainSkills[skill.code]) {
+        domainSkills[skill.code] = 'no';
+      }
+    });
+    newDomains[currentDomain.id].skills = domainSkills;
+
+    setShowNoPatternModal(false);
+    setNoStreak(0);
+    autoSaveToDB(newDomains);
+    handleNextDomain();
+  };
+
   const handleNextDomain = () => {
     if (domainIndex < ABLLS_DOMAINS.length - 1) {
       setDomainIndex(domainIndex + 1);
+      setNoStreak(0);
       window.scrollTo(0, 0);
     } else {
       navigate(`/progress/${id}`);
@@ -127,18 +171,20 @@ const AssessmentPage = () => {
   const handlePrevDomain = () => {
     if (domainIndex > 0) {
       setDomainIndex(domainIndex - 1);
+      setNoStreak(0);
       window.scrollTo(0, 0);
     }
   };
 
   const handleJumpDomain = (idx) => {
      setDomainIndex(idx);
+     setNoStreak(0);
      window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
     <div className="max-w-[1200px] mx-auto relative pb-32 animate-in fade-in duration-700">
-      <div className="mb-12 sticky top-0 bg-surface/80 backdrop-blur-xl pt-4 pb-4 z-10 border-b border-outline-variant/10">
+      <div className="mb-12 sticky top-6 bg-surface/90 backdrop-blur-xl pt-4 pb-4 z-20 border-b border-outline-variant/10 rounded-[1.5rem] shadow-sm">
         <DomainProgressBar 
            currentDomainId={currentDomain.id} 
            studentDomains={assessmentData} 
@@ -197,7 +243,7 @@ const AssessmentPage = () => {
                   onClick={() => handleScore(skill.code, 'sometimes', skill.isGateway)}
                 />
                 <ScoreButton 
-                  type="no" text="NO / Never" 
+                  type="no" text="NO" 
                   active={currentDomainData.skills[skill.code] === 'no'} 
                   onClick={() => handleScore(skill.code, 'no', skill.isGateway)}
                 />
@@ -213,7 +259,7 @@ const AssessmentPage = () => {
           <button 
             onClick={handlePrevDomain}
             disabled={domainIndex === 0}
-            className={`px-10 py-5 font-black uppercase tracking-widest text-xs rounded-full transition-all flex items-center justify-center gap-3 ${domainIndex === 0 ? 'opacity-20 cursor-not-allowed text-on-surface' : 'text-on-surface hover:bg-surface-container-high active:scale-95'}`}
+            className={`px-10 py-5 font-black uppercase tracking-widest text-sm rounded-full transition-all flex items-center justify-center gap-3 ${domainIndex === 0 ? 'opacity-20 cursor-not-allowed text-on-surface' : 'text-on-surface hover:bg-surface-container-high active:scale-95'}`}
           >
             <span className="material-symbols-outlined text-lg">arrow_back</span> Return to Previous Vector
           </button>
@@ -227,7 +273,7 @@ const AssessmentPage = () => {
 
           <button 
             onClick={handleNextDomain}
-            className="px-12 py-5 font-black text-on-primary bg-primary rounded-full hover:bg-primary-dim shadow-xl shadow-primary/20 hover:shadow-2xl active:scale-[0.98] transition-all flex items-center justify-center gap-4 text-xs uppercase tracking-widest"
+            className="px-12 py-5 font-black text-on-primary bg-primary rounded-full hover:bg-primary-dim shadow-xl shadow-primary/20 hover:shadow-2xl active:scale-[0.98] transition-all flex items-center justify-center gap-4 text-sm uppercase tracking-widest"
           >
             {domainIndex < ABLLS_DOMAINS.length - 1 ? 'Advance Internal Vector' : 'View Final Analytics'} 
             <span className="material-symbols-outlined text-lg">arrow_forward</span>
@@ -242,23 +288,53 @@ const AssessmentPage = () => {
                <span className="material-symbols-outlined text-5xl">priority_high</span>
             </div>
             <div className="space-y-4">
-                <h3 className="text-3xl font-black font-headline text-on-surface tracking-tighter">Gateway Requisite Gap</h3>
+                <h3 className="text-3xl font-black font-headline text-on-surface tracking-tighter">Ready For The Next Module</h3>
                 <p className="text-on-surface-variant font-medium leading-relaxed opacity-70">
-                    The developmental requisite for this domain was not observed. Standard clinical protocols suggest marking the remaining skills as <span className="text-error font-black uppercase tracking-widest">Not Assessed</span> to maintain data integrity.
+                    Since the student has not yet mastered the basic level for this module, it may be more suitable to move ahead to the next module and continue from there.
                 </p>
             </div>
             <div className="flex flex-col gap-4">
               <button 
                 onClick={handleGatewaySkip}
-                className="w-full py-5 text-on-primary bg-error rounded-full font-black uppercase tracking-widest text-[10px] shadow-xl shadow-error/20 hover:bg-error-container hover:text-on-error-container transition-all"
+                className="w-full py-5 text-on-primary bg-error rounded-full font-black uppercase tracking-widest text-xs shadow-xl shadow-error/20 hover:bg-error-container hover:text-on-error-container transition-all"
               >
-                Conform & Skip Vector
+                Proceed
               </button>
               <button 
                 onClick={handleGatewayCancel}
-                className="w-full py-5 text-on-surface-variant font-black uppercase tracking-widest text-[10px] hover:bg-surface-container-low rounded-full transition-all"
+                className="w-full py-5 text-on-surface-variant font-black uppercase tracking-widest text-xs hover:bg-surface-container-low rounded-full transition-all"
               >
-                Return to Observation
+                Manually Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showNoPatternModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#34313a]/80 backdrop-blur-lg p-6 animate-in fade-in duration-300">
+          <div className="bg-white rounded-[3rem] shadow-2xl max-w-xl w-full p-12 text-center space-y-8 animate-in zoom-in-95 duration-500 border border-white/20">
+            <div className="w-24 h-24 bg-warning/10 text-warning rounded-full flex items-center justify-center mx-auto">
+              <span className="material-symbols-outlined text-5xl">help</span>
+            </div>
+            <div className="space-y-4">
+              <h3 className="text-3xl font-black font-headline text-on-surface tracking-tighter">Need A Hand With This Module?</h3>
+              <p className="text-on-surface-variant font-medium leading-relaxed opacity-70">
+                You have selected <span className="font-black text-error uppercase tracking-widest">No</span> several times in a row. If you would like, Cognify can gently autofill the rest of this module as <span className="font-black text-error uppercase tracking-widest">No</span> and move you to the next module, or you can continue answering manually.
+              </p>
+            </div>
+            <div className="flex flex-col md:flex-row gap-4">
+              <button
+                onClick={handleAutofillRemainingNo}
+                className="flex-1 py-5 text-on-primary bg-error rounded-full font-black uppercase tracking-widest text-xs shadow-xl shadow-error/20 hover:bg-error-container hover:text-on-error-container transition-all"
+              >
+                Autofill As No
+              </button>
+              <button
+                onClick={handleManualContinue}
+                className="flex-1 py-5 text-on-surface-variant font-black uppercase tracking-widest text-xs hover:bg-surface-container-low rounded-full transition-all border border-outline-variant/10"
+              >
+                Manually Continue
               </button>
             </div>
           </div>

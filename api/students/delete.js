@@ -6,9 +6,7 @@ export default async function handler(req, res) {
   
   try {
      const decoded = requireAuth(req);
-     if (!decoded || decoded.role !== 'admin') {
-        return res.status(403).json({error: 'Forbidden: Admin only'});
-     }
+     if (!decoded) return res.status(401).json({error: 'Unauthorized'});
 
      const { studentId } = req.body;
      if (!studentId) return res.status(400).json({error: 'Student ID required'});
@@ -17,7 +15,7 @@ export default async function handler(req, res) {
      
      // Get student name for logging before deletion
      const student = await db.execute({
-        sql: "SELECT name FROM students WHERE id = ?",
+        sql: "SELECT id, name, created_by, org_id FROM students WHERE id = ?",
         args: [studentId]
      });
 
@@ -25,7 +23,12 @@ export default async function handler(req, res) {
         return res.status(404).json({error: 'Student not found'});
      }
 
-     const studentName = student.rows[0].name;
+     const studentRecord = student.rows[0];
+     const studentName = studentRecord.name;
+
+     if (decoded.role !== 'admin' && studentRecord.org_id !== decoded.org_id) {
+        return res.status(403).json({error: 'Forbidden'});
+     }
 
      // Delete student and their assessments
      await db.execute({ sql: "DELETE FROM assessments WHERE student_id = ?", args: [studentId] });

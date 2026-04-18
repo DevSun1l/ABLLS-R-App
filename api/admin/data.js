@@ -18,7 +18,7 @@ export default async function handler(req, res) {
          FROM users u
       `);
 
-      const studentsResult = await db.execute("SELECT id, name, age_years, age_months, org_id, created_at FROM students");
+      const studentsResult = await db.execute("SELECT id, name, age_years, age_months, org_id, created_at, created_by FROM students");
       const assessmentsResult = await db.execute("SELECT id, student_id, assessor_id, date, domain_data, status, created_at FROM assessments");
       
       // Fetch all logs for the system-wide activity redesigned tab

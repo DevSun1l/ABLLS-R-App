@@ -2,26 +2,43 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSearch } from '../context/SearchContext';
-import StudentCard from '../components/StudentCard';
+import StudentCard, { StudentAssessmentModal } from '../components/StudentCard';
+import { formatDateTime, formatRelativeTime } from '../utils/time';
 
 const DashboardPage = () => {
   const { user } = useAuth();
   const { searchQuery } = useSearch();
   const navigate = useNavigate();
   const [students, setStudents] = useState([]);
+  const [activityFeed, setActivityFeed] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [assessmentForm, setAssessmentForm] = useState(null);
+  const [savingAssessment, setSavingAssessment] = useState(false);
+  const [, setTick] = useState(0);
   
   useEffect(() => {
-    const fetchStudents = async () => {
+    const fetchDashboardData = async () => {
       try {
         const token = sessionStorage.getItem('ablls_token');
         if (!token) return;
-        const res = await fetch('/api/students/org', {
-           headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-           const data = await res.json();
-           setStudents(data.students || []);
+        const [studentRes, activityRes] = await Promise.all([
+          fetch('/api/students/org', {
+            headers: { Authorization: `Bearer ${token}` }
+          }),
+          fetch('/api/activity/feed', {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+        ]);
+
+        if (studentRes.ok) {
+          const data = await studentRes.json();
+          setStudents(data.students || []);
+        }
+
+        if (activityRes.ok) {
+          const data = await activityRes.json();
+          setActivityFeed(data.activity || []);
         }
       } catch (e) {
          console.error("Failed to load clinical caseload", e);
@@ -29,7 +46,14 @@ const DashboardPage = () => {
          setLoading(false);
       }
     };
-    fetchStudents();
+
+    fetchDashboardData();
+    const poll = setInterval(fetchDashboardData, 5000);
+    const clock = setInterval(() => setTick((value) => value + 1), 1000);
+    return () => {
+      clearInterval(poll);
+      clearInterval(clock);
+    };
   }, [user]);
 
   // Search Filtering Logic
@@ -49,10 +73,99 @@ const DashboardPage = () => {
      const avg = Math.round(students.reduce((acc, s) => acc + (s.masteryPercent || 0), 0) / (active || 1));
      return {
         avgMastery: avg,
-        activeAssessments: active,
-        trend: 14 // Simulated baseline trend indicator
+        activeAssessments: students.filter((s) => s.hasAssessment).length,
+        trend: activityFeed.length
      };
-  }, [students]);
+  }, [students, activityFeed]);
+
+  const fetchStudentsOnly = async () => {
+    const token = sessionStorage.getItem('ablls_token');
+    if (!token) return;
+    const res = await fetch('/api/students/org', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setStudents(data.students || []);
+    }
+  };
+
+  const handleStartAssessment = (student) => {
+    setSelectedStudent(student);
+    setAssessmentForm({
+      id: student.id,
+      name: student.name || '',
+      ageYears: student.ageYears || 0,
+      ageMonths: student.ageMonths || 0,
+      assessor: [user?.first_name, user?.last_name].filter(Boolean).join(' '),
+      assessmentDate: new Date().toISOString().split('T')[0],
+      diagnoses: student.diagnoses || [],
+      notes: student.notes || '',
+    });
+  };
+
+  const handleSaveAndStartAssessment = async (e) => {
+    e.preventDefault();
+    if (!selectedStudent || !assessmentForm) return;
+
+    setSavingAssessment(true);
+    try {
+      const token = sessionStorage.getItem('ablls_token');
+      const res = await fetch('/api/students/save', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: selectedStudent.id,
+          ...assessmentForm,
+        }),
+      });
+
+      if (res.ok) {
+        setSelectedStudent(null);
+        setAssessmentForm(null);
+        await fetchStudentsOnly();
+        navigate(`/assessment/${selectedStudent.id}`);
+      }
+    } catch (e) {
+      console.error('Failed to update student before assessment', e);
+    } finally {
+      setSavingAssessment(false);
+    }
+  };
+
+  const handleDeleteStudent = async (student) => {
+    if (!window.confirm(`Delete ${student.name}? This will remove the student and any saved assessments.`)) return;
+
+    try {
+      const token = sessionStorage.getItem('ablls_token');
+      const res = await fetch('/api/students/delete', {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ studentId: student.id }),
+      });
+
+      if (res.ok) {
+        await fetchStudentsOnly();
+      }
+    } catch (e) {
+      console.error('Failed to delete student', e);
+    }
+  };
+
+  const accentClasses = {
+    primary: 'bg-primary/10 text-primary border-primary/15',
+    secondary: 'bg-secondary/10 text-secondary border-secondary/15',
+    tertiary: 'bg-tertiary/10 text-tertiary border-tertiary/15',
+    success: 'bg-success/10 text-success border-success/15',
+    warning: 'bg-warning/10 text-warning border-warning/15',
+    neutral: 'bg-surface-container-high text-on-surface-variant border-outline-variant/10',
+  };
 
   if (loading) return (
      <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
@@ -91,18 +204,18 @@ const DashboardPage = () => {
                   <span className="w-2 h-2 rounded-full bg-primary animate-ping" /> Live Sync
                </span>
             </div>
-            <h3 className="text-4xl font-black font-headline mb-4 tracking-tight leading-tight text-on-surface">Patient Engagement is up {metrics.trend}%</h3>
+            <h3 className="text-4xl font-black font-headline mb-4 tracking-tight leading-tight text-on-surface">Real-Time Activity Log</h3>
             <p className="text-on-surface-variant font-medium text-lg leading-relaxed opacity-90">
-              Your caseload for clinical supervision has increased. Avg mastery across your active students is currently <span className="text-primary font-black underline underline-offset-4">{metrics.avgMastery}%</span>. Review the student log for updated progress notes.
+              Your dashboard is streaming the latest clinical events live. Avg mastery across your active students is currently <span className="text-primary font-black underline underline-offset-4">{metrics.avgMastery}%</span>, with <span className="text-primary font-black underline underline-offset-4">{activityFeed.length}</span> current activity items updating in real time.
             </p>
           </div>
           
-          <span className="material-symbols-outlined absolute -bottom-10 -right-10 text-primary/5 text-[20rem] rotate-12 transition-transform group-hover:scale-110 duration-1000">trending_up</span>
+          <span className="material-symbols-outlined absolute -bottom-10 -right-10 text-primary/5 text-[20rem] rotate-12 transition-transform group-hover:scale-110 duration-1000">history</span>
           
-          <div className="absolute top-10 right-10 hidden lg:flex gap-4">
-             {[1,2,3].map(i => (
-                <div key={i} className="w-16 h-16 rounded-2xl bg-primary/5 border border-primary/20 animate-pulse" style={{ animationDelay: `${i * 0.5}s` }} />
-             ))}
+          <div className="absolute top-10 right-10 hidden lg:flex flex-col items-end gap-2 rounded-[1.75rem] bg-surface/90 px-5 py-4 border border-primary/10 shadow-sm">
+             <p className="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Live Now</p>
+             <p className="text-lg font-black text-on-surface">{new Date().toLocaleTimeString()}</p>
+             <p className="text-[11px] font-medium text-on-surface-variant">{activityFeed[0] ? formatRelativeTime(activityFeed[0].timestamp) : 'Waiting for events'}</p>
           </div>
         </div>
       </section>
@@ -135,7 +248,12 @@ const DashboardPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
             {filteredStudents.map(student => (
                <div key={student.id} className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                  <StudentCard student={student} />
+                  <StudentCard
+                    student={student}
+                    onViewProgress={(target) => navigate(`/progress/${target.id}`)}
+                    onStartAssessment={handleStartAssessment}
+                    onDeleteStudent={handleDeleteStudent}
+                  />
                </div>
             ))}
           </div>
@@ -149,23 +267,38 @@ const DashboardPage = () => {
            <span className="text-[10px] font-black text-primary uppercase tracking-[0.4em] opacity-40">Live Audit Trail</span>
         </div>
         <div className="space-y-4">
-          {[
-            { id: 1, title: 'Notes updated for Maya Chen', sub: 'Session #8 completed successfully', time: '2h ago', icon: 'edit_note' },
-            { id: 2, title: 'New Referral: Leo Garcia', sub: 'Pending documentation review', time: '5h ago', icon: 'assignment_turned_in' }
-          ].map(event => (
+          {activityFeed.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-outline-variant/20 bg-white/70 p-10 text-center text-sm font-medium text-on-surface-variant">
+              Live activity will appear here as future events are logged.
+            </div>
+          ) : activityFeed.map((event) => (
             <div key={event.id} className="flex items-center gap-6 p-6 bg-white rounded-3xl border border-outline-variant/5 shadow-sm hover:shadow-md transition-all group">
-               <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all">
+               <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all border ${accentClasses[event.accent] || accentClasses.neutral}`}>
                   <span className="material-symbols-outlined text-2xl">{event.icon}</span>
                </div>
                <div className="flex-1">
                   <p className="text-sm font-black text-on-surface">{event.title}</p>
-                  <p className="text-xs text-on-surface-variant font-medium opacity-60">{event.sub}</p>
+                  <p className="text-xs text-on-surface-variant font-medium opacity-60">{event.message}</p>
+                  <p className="mt-1 text-[10px] font-medium text-on-surface-variant/60">{formatDateTime(event.timestamp)}</p>
                </div>
-               <span className="text-[10px] font-black text-primary uppercase tracking-widest italic opacity-40">{event.time}</span>
+               <span className="text-[10px] font-black text-primary uppercase tracking-widest italic opacity-40">{formatRelativeTime(event.timestamp)}</span>
             </div>
           ))}
         </div>
       </section>
+
+      <StudentAssessmentModal
+        open={Boolean(selectedStudent)}
+        student={selectedStudent}
+        formData={assessmentForm}
+        setFormData={setAssessmentForm}
+        saving={savingAssessment}
+        onClose={() => {
+          setSelectedStudent(null);
+          setAssessmentForm(null);
+        }}
+        onSubmit={handleSaveAndStartAssessment}
+      />
     </div>
   );
 };

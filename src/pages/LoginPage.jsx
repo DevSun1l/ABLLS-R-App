@@ -21,6 +21,23 @@ const LoginPage = () => {
   const { login, signup } = useAuth();
   const navigate = useNavigate();
 
+  const resetForm = () => {
+    setEmail('');
+    setPassword('');
+    setFirstName('');
+    setLastName('');
+    setConfirmPassword('');
+    setRole('therapist');
+    setOrganization('');
+    setShowPassword(false);
+    setError('');
+  };
+
+  const toggleMode = (nextIsSignup) => {
+    resetForm();
+    setIsSignup(nextIsSignup);
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
@@ -170,10 +187,32 @@ const LoginPage = () => {
                     required type="email"
                     className="w-full bg-surface-container-low/50 border-none rounded-full h-14 pl-14 pr-6 text-sm font-bold focus:ring-2 focus:ring-primary transition-all"
                     value={email} onChange={e => setEmail(e.target.value)}
-                    placeholder="specialist@cognify.care"
+                    placeholder="Email address"
                   />
                 </div>
               </div>
+
+              {isSignup && (
+                <div className="space-y-2 animate-in fade-in duration-500 delay-125">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-primary ml-4">Role</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {['therapist', 'teacher'].map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setRole(option)}
+                        className={`h-14 rounded-[1.25rem] border text-sm font-black uppercase tracking-[0.2em] transition-all ${
+                          role === option
+                            ? 'bg-primary text-on-primary border-primary shadow-lg shadow-primary/20'
+                            : 'bg-surface-container-low/50 text-on-surface border-outline-variant/10'
+                        }`}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {isSignup && (
                 <div className="space-y-1.5 animate-in fade-in duration-500 delay-150">
@@ -226,7 +265,7 @@ const LoginPage = () => {
                   <div className="w-6 h-6 border-4 border-white border-t-transparent animate-spin rounded-full"></div>
                 ) : (
                   <>
-                    {isSignup ? 'Establish Account' : 'Authenticate Identity'}
+                    {isSignup ? 'Create Account' : 'Sign In'}
                     <span className="material-symbols-outlined transition-transform group-hover:translate-x-1">arrow_forward</span>
                   </>
                 )}
@@ -237,7 +276,7 @@ const LoginPage = () => {
               <p className="text-sm font-medium text-on-surface-variant opacity-60">
                 {isSignup ? 'Already have credentials?' : 'Need to establish node access?'}
                 <button 
-                  onClick={() => setIsSignup(!isSignup)}
+                  onClick={() => toggleMode(!isSignup)}
                   className="ml-2 text-primary font-black hover:underline underline-offset-4"
                 >
                   {isSignup ? 'Sign In' : 'Create Account'}

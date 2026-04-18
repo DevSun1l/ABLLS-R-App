@@ -11,11 +11,16 @@ const AdminLayout = ({ children, activeTab, setActiveTab }) => {
     { title: 'Dashboard', icon: 'dashboard', tab: 'overview', path: '/admin' },
     { title: 'User Access', icon: 'groups', tab: 'users', path: '/admin' },
     { title: 'Goal Library', icon: 'library_books', tab: 'goals', path: '/admin/goals' },
-    { title: 'Organizations', icon: 'corporate_fare', tab: 'organizations', path: '/admin' },
     { title: 'Recent Activity', icon: 'history', tab: 'activity', path: '/admin' },
     { title: 'Feedback Portal', icon: 'forum', tab: 'feedback', path: '/admin' },
     { title: 'Data & Backups', icon: 'analytics', tab: 'data', path: '/admin' },
   ];
+
+  const handleLogout = () => {
+    if (window.confirm('Are you sure you want to sign out?')) {
+      logout();
+    }
+  };
 
   const handleNav = (item) => {
     if (item.path === location.pathname && setActiveTab) {
@@ -102,7 +107,7 @@ const AdminLayout = ({ children, activeTab, setActiveTab }) => {
         
         <div className="px-4 pb-14 mt-auto">
           <button 
-            onClick={logout}
+            onClick={handleLogout}
             className="w-full bg-primary text-on-primary shadow-lg shadow-primary/20 hover:bg-primary-dim transition-all duration-300 font-black text-[10px] uppercase tracking-widest py-4 px-6 rounded-full transform hover:-translate-y-1 flex items-center justify-center gap-3 active:scale-95"
           >
             <span className="material-symbols-outlined text-sm">logout</span> Sign Out

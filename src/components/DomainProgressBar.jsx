@@ -4,16 +4,6 @@ import { ABLLS_DOMAINS } from '../data/ablls';
 const DomainProgressBar = ({ currentDomainId, studentDomains, onSelectDomain }) => {
   const containerRef = useRef(null);
 
-  // Find the highest domain index that has been scored
-  let highestScoredIndex = -1;
-  ABLLS_DOMAINS.forEach((d, i) => {
-     if (studentDomains && studentDomains[d.id] && Object.keys(studentDomains[d.id].skills || {}).length > 0) {
-        highestScoredIndex = i;
-     }
-  });
-
-  const visibleUntilIndex = Math.max(highestScoredIndex + 1, ABLLS_DOMAINS.findIndex(d => d.id === currentDomainId));
-
   useEffect(() => {
     if (containerRef.current) {
         const activeEl = containerRef.current.querySelector('.domain-active');
@@ -29,9 +19,6 @@ const DomainProgressBar = ({ currentDomainId, studentDomains, onSelectDomain }) 
         {ABLLS_DOMAINS.map((domain, index) => {
           const isActive = currentDomainId === domain.id;
           const status = studentDomains?.[domain.id];
-          const isVisible = index <= visibleUntilIndex;
-          
-          if (!isVisible) return null; // shift to visibility as test progresses
 
           let bgColor = 'bg-surface-container-low text-on-surface-variant shadow-sm border border-outline-variant/10';
           if (isActive) {

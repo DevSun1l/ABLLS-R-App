@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
+import { formatRelativeTime, parseAppDate } from '../utils/time';
 
 const AdminDashboard = () => {
     const { user } = useAuth();
@@ -14,19 +15,19 @@ const AdminDashboard = () => {
         loginLogs: [],
         feedback: { entries: [], insights: { avgRating: 0, moodDistribution: { happy: 0, neutral: 0, sad: 0 }, totalCount: 0 } }
     });
-    const [loading, setLoading] = useState(true);
+    const [, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState(location.state?.tab || 'overview');
     const [chartFilter, setChartFilter] = useState('month');
-    const [tick, setTick] = useState(0);
+    const [, setTick] = useState(0);
 
     // Modal States
     const [showInviteModal, setShowInviteModal] = useState(false);
     const [showUserModal, setShowUserModal] = useState(false);
     const [selectedUser, setSelectedUser] = useState(null);
-    const [inviteForm, setInviteForm] = useState({ email: '', firstName: '', lastName: '', role: 'therapist' });
+    const [inviteForm, setInviteForm] = useState({ userId: '' });
     const [processing, setProcessing] = useState(false);
 
-    const fetchAdminData = async () => {
+    const fetchAdminData = useCallback(async () => {
         try {
             const token = sessionStorage.getItem('ablls_token');
             const [dataRes, feedbackRes] = await Promise.all([
@@ -34,7 +35,13 @@ const AdminDashboard = () => {
                 fetch('/api/admin/feedback', { headers: { 'Authorization': `Bearer ${token}` } })
             ]);
 
-            let newData = { ...data };
+            let newData = { 
+                users: [], 
+                students: [], 
+                assessments: [], 
+                loginLogs: [],
+                feedback: { entries: [], insights: { avgRating: 0, moodDistribution: { happy: 0, neutral: 0, sad: 0 }, totalCount: 0 } }
+            };
             if (dataRes.ok) {
                 const result = await dataRes.json();
                 newData = { ...newData, ...result };
@@ -49,7 +56,7 @@ const AdminDashboard = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         if (location.state?.tab) {
@@ -59,35 +66,13 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         fetchAdminData();
-        const interval = setInterval(fetchAdminData, 30000);
+        const interval = setInterval(fetchAdminData, 5000);
         const tickInterval = setInterval(() => setTick(t => t + 1), 1000); // Live updates every second
         return () => {
             clearInterval(interval);
             clearInterval(tickInterval);
         };
-    }, []);
-
-    const timeAgo = (date) => {
-        if (!date) return '...';
-        const now = new Date();
-        // Replacing space with T for cross-browser ISO compatibility (e.g. Safari)
-        const past = new Date(String(date).replace(' ', 'T'));
-        const seconds = Math.floor((now - past) / 1000);
-        
-        if (seconds < 5) return 'just now';
-        if (seconds < 60) return `${seconds}s ago`;
-        
-        const minutes = Math.floor(seconds / 60);
-        if (minutes < 60) return `${minutes}m ${seconds % 60}s ago`;
-        
-        const hours = Math.floor(minutes / 60);
-        if (hours < 24) return `${hours}h ${minutes % 60}m ago`;
-        
-        const days = Math.floor(hours / 24);
-        if (days < 7) return `${days}d ago`;
-        
-        return past.toLocaleDateString();
-    };
+    }, [fetchAdminData]);
 
     const handleInvite = async (e) => {
         e.preventDefault();
@@ -103,9 +88,11 @@ const AdminDashboard = () => {
                 body: JSON.stringify(inviteForm)
             });
             if (res.ok) {
+                const result = await res.json();
                 setShowInviteModal(false);
-                setInviteForm({ email: '', firstName: '', lastName: '', role: 'therapist' });
+                setInviteForm({ userId: '' });
                 fetchAdminData();
+                alert(`Admin access granted.\nUsername: ${result.username}\nPassword: ${result.password}`);
             } else {
                 const err = await res.json();
                 alert(err.error || 'Failed to invite user');
@@ -172,6 +159,7 @@ const AdminDashboard = () => {
                     text: <>{nameNode} removed student <span className="font-bold text-error">"{details.student_name || 'Individual'}"</span> from the system.</>
                 };
             case 'assessment_created':
+                {
                 const studentId = details.student_id;
                 const student = (data.students || []).find(s => s.id === studentId) || { name: 'Unknown Student' };
                 return {
@@ -180,12 +168,20 @@ const AdminDashboard = () => {
                     title: 'Clinical Assessment',
                     text: <>{nameNode} completed a new evaluation for student <span className="font-bold text-tertiary">"{student.name}"</span></>
                 };
+                }
             case 'feedback_submitted':
                 return {
                     icon: 'rate_review',
                     color: 'bg-secondary',
                     title: 'Feedback Capture',
                     text: <>{nameNode} submitted a system feedback capture.</>
+                };
+            case 'admin_promoted':
+                return {
+                    icon: 'admin_panel_settings',
+                    color: 'bg-warning',
+                    title: 'Admin Access Granted',
+                    text: <>{nameNode} was promoted to admin access with updated credentials.</>
                 };
             default:
                 return {
@@ -224,64 +220,25 @@ const AdminDashboard = () => {
         }
     };
 
-    const formatTimestamp = (date) => {
-        if (!date) return '...';
-        const d = new Date(String(date).replace(' ', 'T'));
-        if (isNaN(d.getTime())) return 'Now';
-        return d.toLocaleString('en-US', { 
-            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
-        });
-    };
-
-    const getCombinedActivity = () => {
-        const activities = [];
-        const parse = (d) => {
-            if (!d) return new Date();
-            const date = new Date(String(d).replace(' ', 'T'));
-            return isNaN(date.getTime()) ? new Date() : date;
-        };
-        
-        data.users.forEach(u => {
-            if (u.created_at) {
-                activities.push({
-                    id: `u-${u.id}`,
-                    date: parse(u.created_at),
-                    type: 'user',
-                    icon: 'person_add',
-                    color: 'bg-primary',
-                    text: <><span className="font-bold">{u.first_name} {u.last_name?.[0] || ''}.</span> registered as <span className="text-primary font-bold uppercase">{u.role}</span></>
-                });
-            }
-        });
-        data.students.forEach(s => {
-            if (s.created_at) {
-                activities.push({
-                    id: `s-${s.id}`,
-                    date: parse(s.created_at),
-                    type: 'student',
-                    icon: 'child_care',
-                    color: 'bg-secondary',
-                    text: <>Student <span className="text-primary font-bold">{s.name}</span> enrolled in system</>
-                });
-            }
-        });
-        data.assessments.forEach(a => {
-            if (a.created_at) {
-                activities.push({
-                    id: `a-${a.id}`,
-                    date: parse(a.created_at),
-                    type: 'assessment',
-                    icon: 'check_circle',
-                    color: 'bg-tertiary',
-                    text: <>Assessment <span className="text-primary font-bold">#{a.id}</span> generated for analysis</>
-                });
-            }
-        });
-        return activities.sort((a, b) => b.date - a.date);
-    };
-
-    const activityFeed = getCombinedActivity();
     const avgMastery = 84.2;
+    const eligibleFaculty = (data.users || []).filter((entry) => entry.role !== 'admin' && entry.status !== 'blocked');
+    const selectedInviteUser = eligibleFaculty.find((entry) => entry.id === inviteForm.userId);
+    const generatedAdminEmail = selectedInviteUser
+        ? `${`${selectedInviteUser.first_name || ''}${selectedInviteUser.last_name || ''}`.toLowerCase().replace(/[^a-z0-9]/g, '') || 'faculty'}admin@cognifycareteam.com`
+        : '';
+    const formatAdminTime = (value) => {
+        const date = parseAppDate(value);
+        if (!date) return '...';
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
+    const selectedUserStudents = selectedUser
+        ? data.students.filter((student) => student.created_by === selectedUser.id)
+        : [];
+    const selectedUserStudentsWithoutTests = selectedUserStudents.filter((student) =>
+        !data.assessments.some((assessment) => assessment.student_id === student.id)
+    );
+    const getStudentTestCount = (studentId) =>
+        data.assessments.filter((assessment) => assessment.student_id === studentId).length;
 
     return (
         <AdminLayout activeTab={activeTab} setActiveTab={setActiveTab}>
@@ -530,9 +487,9 @@ const AdminDashboard = () => {
                                                             {info.text}
                                                         </div>
                                                         <div className="flex items-center gap-2 mt-1">
-                                                            <span className="text-[10px] font-bold text-primary uppercase tracking-widest opacity-60 italic">{timeAgo(log.timestamp)}</span>
+                                                            <span className="text-[10px] font-bold text-primary uppercase tracking-widest opacity-60 italic">{formatRelativeTime(log.timestamp)}</span>
                                                             <span className="w-1 h-1 bg-outline rounded-full opacity-20"></span>
-                                                            <span className="text-[10px] text-on-surface-variant font-medium opacity-50 truncate uppercase">{formatTimestamp(log.timestamp)}</span>
+                                                            <span className="text-[10px] text-on-surface-variant font-medium opacity-50 truncate">{formatAdminTime(log.timestamp)}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -568,7 +525,7 @@ const AdminDashboard = () => {
                                 onClick={() => setShowInviteModal(true)}
                                 className="bg-primary text-on-primary shadow-lg shadow-primary/20 hover:bg-primary-dim transition-all duration-300 font-black text-xs uppercase tracking-widest py-4 px-8 rounded-full transform hover:-translate-y-1 flex items-center gap-3"
                             >
-                                <span className="material-symbols-outlined">person_add</span> Invite Faculty
+                                <span className="material-symbols-outlined">admin_panel_settings</span> Promote Faculty
                             </button>
                         </div>
 
@@ -625,22 +582,6 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
-                {activeTab === 'organizations' && (
-                    <div className="space-y-6">
-                        <div className="mb-8 border-b border-outline-variant/10 pb-8">
-                            <h2 className="text-4xl font-black font-headline text-on-surface tracking-tight">Organization Roster</h2>
-                            <p className="text-on-surface-variant mt-2 font-medium">Manage corporate licenses and clinical multi-tenant clusters.</p>
-                        </div>
-                        <div className="bg-surface-container-lowest p-20 rounded-3xl shadow-sm border border-outline-variant/20 text-center flex flex-col items-center group">
-                            <div className="w-24 h-24 bg-surface-container-high rounded-full flex items-center justify-center mb-8 text-outline shadow-inner transition-transform group-hover:scale-110">
-                                <span className="material-symbols-outlined text-5xl">corporate_fare</span>
-                            </div>
-                            <h3 className="text-2xl font-black font-headline text-on-surface mb-3 tracking-tight">Organization Control Protocol</h3>
-                            <p className="text-on-surface-variant text-sm max-w-sm font-medium leading-relaxed opacity-70">Enhanced multi-tenant data isolation and node clustering management modules are currently in secure staging.</p>
-                        </div>
-                    </div>
-                )}
-
                 {activeTab === 'feedback' && (
                     <div className="space-y-6">
                         <div className="mb-8 border-b border-outline-variant/10 pb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
@@ -691,7 +632,7 @@ const AdminDashboard = () => {
                                                 </div>
                                                 <div>
                                                     <p className="text-xs font-black text-on-surface uppercase tracking-wider">{u.first_name} {u.last_name}</p>
-                                                    <p className="text-[9px] text-on-surface-variant uppercase tracking-widest mt-0.5">{timeAgo(fb.created_at)}</p>
+                                                    <p className="text-[9px] text-on-surface-variant uppercase tracking-widest mt-0.5">{formatRelativeTime(fb.created_at)}</p>
                                                 </div>
                                             </div>
 
@@ -744,71 +685,49 @@ const AdminDashboard = () => {
                         <div className="bg-surface-container-lowest w-full max-w-lg rounded-3xl shadow-2xl border border-outline-variant/20 overflow-hidden animate-in zoom-in-95 duration-300">
                             <div className="p-8 pb-0 flex justify-between items-start">
                                 <div>
-                                    <h3 className="text-2xl font-black font-headline text-on-surface tracking-tight">Invite Faculty</h3>
-                                    <p className="text-on-surface-variant text-sm font-medium opacity-70">Provision a new clinical access node.</p>
+                                    <h3 className="text-2xl font-black font-headline text-on-surface tracking-tight">Promote Existing Faculty</h3>
+                                    <p className="text-on-surface-variant text-sm font-medium opacity-70">Only existing faculty members can be upgraded to admin access.</p>
                                 </div>
                                 <button onClick={() => setShowInviteModal(false)} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-high transition-colors text-on-surface-variant">
                                     <span className="material-symbols-outlined">close</span>
                                 </button>
                             </div>
                             <form onSubmit={handleInvite} className="p-8 space-y-5">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-primary ml-4">First Name</label>
-                                        <input 
-                                            required
-                                            className="w-full bg-surface-container-high border-none rounded-full h-12 px-6 text-sm font-bold focus:ring-2 focus:ring-primary transition-all"
-                                            value={inviteForm.firstName}
-                                            onChange={e => setInviteForm({...inviteForm, firstName: e.target.value})}
-                                            placeholder="John"
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-primary ml-4">Last Name</label>
-                                        <input 
-                                            required
-                                            className="w-full bg-surface-container-high border-none rounded-full h-12 px-6 text-sm font-bold focus:ring-2 focus:ring-primary transition-all"
-                                            value={inviteForm.lastName}
-                                            onChange={e => setInviteForm({...inviteForm, lastName: e.target.value})}
-                                            placeholder="Doe"
-                                        />
-                                    </div>
-                                </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-primary ml-4">Email Identity</label>
-                                    <input 
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-primary ml-4">Faculty Member</label>
+                                    <select
                                         required
-                                        type="email"
                                         className="w-full bg-surface-container-high border-none rounded-full h-12 px-6 text-sm font-bold focus:ring-2 focus:ring-primary transition-all"
-                                        value={inviteForm.email}
-                                        onChange={e => setInviteForm({...inviteForm, email: e.target.value})}
-                                        placeholder="john.doe@cognifycare.com"
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-primary ml-4">Access Protocol (Role)</label>
-                                    <div className="flex gap-2">
-                                        {['therapist', 'teacher', 'admin'].map(r => (
-                                            <button 
-                                                key={r}
-                                                type="button"
-                                                onClick={() => setInviteForm({...inviteForm, role: r})}
-                                                className={`flex-1 h-12 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${inviteForm.role === r ? 'bg-primary text-on-primary border-primary shadow-md' : 'bg-surface-container-high text-on-surface-variant border-transparent'}`}
-                                            >
-                                                {r}
-                                            </button>
+                                        value={inviteForm.userId}
+                                        onChange={(e) => setInviteForm({ userId: e.target.value })}
+                                    >
+                                        <option value="">Select an existing faculty member</option>
+                                        {eligibleFaculty.map((faculty) => (
+                                            <option key={faculty.id} value={faculty.id}>
+                                                {faculty.first_name} {faculty.last_name} ({faculty.role})
+                                            </option>
                                         ))}
+                                    </select>
+                                </div>
+                                <div className="rounded-3xl border border-primary/10 bg-primary/5 p-5 space-y-3">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.25em] text-primary">New admin email</p>
+                                        <p className="mt-2 text-sm font-bold text-on-surface break-all">{generatedAdminEmail || 'Select a faculty member to preview the admin email'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Admin role action</p>
+                                        <p className="mt-2 text-sm text-on-surface-variant">This will change the selected user from standard faculty access to full admin capabilities.</p>
                                     </div>
                                 </div>
                                 <div className="pt-4">
                                     <button 
                                         type="submit"
-                                        disabled={processing}
+                                        disabled={processing || !inviteForm.userId}
                                         className="w-full bg-primary text-on-primary h-14 rounded-full font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-primary/20 hover:bg-primary-dim transition-all active:scale-95 flex items-center justify-center gap-3"
                                     >
-                                        {processing ? <div className="w-5 h-5 border-2 border-on-primary border-t-transparent animate-spin rounded-full" /> : 'Execute Invitation'}
+                                        {processing ? <div className="w-5 h-5 border-2 border-on-primary border-t-transparent animate-spin rounded-full" /> : 'Grant Admin Access'}
                                     </button>
-                                    <p className="text-[10px] text-center mt-4 text-on-surface-variant font-bold opacity-60 uppercase tracking-widest">Default temporary password will be: <span className="text-primary italic">Cognify2026</span></p>
+                                    <p className="text-[10px] text-center mt-4 text-on-surface-variant font-bold opacity-60 uppercase tracking-widest">The promoted user will receive an in-app notification with their new username and password.</p>
                                 </div>
                             </form>
                         </div>
@@ -843,7 +762,7 @@ const AdminDashboard = () => {
                                 </div>
                             </div>
                             <div className="p-8 space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                                     <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/10">
                                         <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1">Student Assets</p>
                                         <p className="text-3xl font-black text-primary font-headline">{selectedUser.student_count || 0}</p>
@@ -858,6 +777,11 @@ const AdminDashboard = () => {
                                         <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1">Total Tests</p>
                                         <p className="text-3xl font-black text-secondary font-headline">{selectedUser.assessment_count || 0}</p>
                                         <p className="text-[10px] text-on-surface-variant font-medium opacity-60 mt-1 uppercase">Performances</p>
+                                    </div>
+                                    <div className="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/10">
+                                        <p className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1">Saved Without Tests</p>
+                                        <p className="text-3xl font-black text-warning font-headline">{selectedUserStudentsWithoutTests.length}</p>
+                                        <p className="text-[10px] text-on-surface-variant font-medium opacity-60 mt-1 uppercase">Need Assessment</p>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -874,10 +798,10 @@ const AdminDashboard = () => {
                                                                 <div className="w-2 h-2 rounded-full bg-primary"></div>
                                                                 <div>
                                                                     <p className="text-xs font-bold text-on-surface uppercase tracking-tight">System Authentication</p>
-                                                                    <p className="text-[10px] text-on-surface-variant font-medium opacity-60">{new Date(log.timestamp).toLocaleString()}</p>
+                                                                    <p className="text-[10px] text-on-surface-variant font-medium opacity-60">{formatAdminTime(log.timestamp)}</p>
                                                                 </div>
                                                             </div>
-                                                            <span className="text-[9px] font-black text-primary bg-primary/10 px-2 py-1 rounded italic h-min">{timeAgo(log.timestamp)}</span>
+                                                            <span className="text-[9px] font-black text-primary bg-primary/10 px-2 py-1 rounded italic h-min">{formatRelativeTime(log.timestamp)}</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -888,14 +812,14 @@ const AdminDashboard = () => {
                                     <div className="space-y-4">
                                         <h4 className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest px-2 flex justify-between">
                                             Managed Student Records
-                                            <span className="text-primary opacity-60 lowercase font-medium">{data.students.filter(s => s.created_by === selectedUser.id).length} total</span>
+                                            <span className="text-primary opacity-60 lowercase font-medium">{selectedUserStudents.length} total</span>
                                         </h4>
                                         <div className="bg-surface-container-low rounded-2xl border border-outline-variant/10 h-64 overflow-y-auto">
-                                            {data.students.filter(s => s.created_by === selectedUser.id).length === 0 ? (
+                                            {selectedUserStudents.length === 0 ? (
                                                 <div className="h-full flex items-center justify-center text-on-surface-variant/40 italic text-xs">No students enrolled by this user</div>
                                             ) : (
                                                 <div className="divide-y divide-outline-variant/10">
-                                                    {data.students.filter(s => s.created_by === selectedUser.id).map(student => (
+                                                    {selectedUserStudents.map(student => (
                                                         <div key={student.id} className="p-4 flex justify-between items-center group hover:bg-white/40 transition-colors">
                                                             <div className="flex items-center gap-3">
                                                                 <div className="w-8 h-8 rounded-full bg-secondary-container text-secondary flex items-center justify-center text-[10px] font-black">
@@ -903,7 +827,8 @@ const AdminDashboard = () => {
                                                                 </div>
                                                                 <div>
                                                                     <p className="text-xs font-bold text-on-surface">{student.name}</p>
-                                                                    <p className="text-[10px] text-on-surface-variant font-medium opacity-60 uppercase">Enrolled {new Date(String(student.created_at || new Date()).replace(' ', 'T')).toLocaleDateString()}</p>
+                                                                    <p className="text-[10px] text-on-surface-variant font-medium opacity-60">Enrolled {formatAdminTime(student.created_at || new Date())}</p>
+                                                                    <p className="text-[10px] text-on-surface-variant font-medium opacity-60">{getStudentTestCount(student.id)} test(s) completed</p>
                                                                 </div>
                                                             </div>
                                                             <button 
@@ -1064,8 +989,8 @@ const AdminDashboard = () => {
                                                             </div>
                                                         </td>
                                                         <td className="px-8 py-6 text-right">
-                                                            <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1 italic">{timeAgo(fb.created_at)}</p>
-                                                            <p className="text-[10px] font-medium text-on-surface-variant opacity-40 uppercase">{formatTimestamp(fb.created_at)}</p>
+                                                            <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1 italic">{formatRelativeTime(fb.created_at)}</p>
+                                                            <p className="text-[10px] font-medium text-on-surface-variant opacity-40">{formatAdminTime(fb.created_at)}</p>
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -1099,7 +1024,7 @@ const AdminDashboard = () => {
                                     <div className="absolute left-6 top-4 bottom-4 w-px bg-gradient-to-b from-primary/20 via-outline-variant/20 to-transparent"></div>
                                     
                                     <div className="space-y-8">
-                                        {data.loginLogs.map((log, idx) => {
+                                        {data.loginLogs.map((log) => {
                                             const info = getActivityInfo(log);
                                             return (
                                                 <div key={log.id} className="relative pl-16 group">
@@ -1117,8 +1042,8 @@ const AdminDashboard = () => {
                                                                 </div>
                                                             </div>
                                                             <div className="text-right shrink-0">
-                                                                <p className="text-[10px] font-black text-primary uppercase tracking-widest italic">{timeAgo(log.timestamp)}</p>
-                                                                <p className="text-[10px] font-medium text-on-surface-variant opacity-40 uppercase truncate">{formatTimestamp(log.timestamp)}</p>
+                                                                <p className="text-[10px] font-black text-primary uppercase tracking-widest italic">{formatRelativeTime(log.timestamp)}</p>
+                                                                <p className="text-[10px] font-medium text-on-surface-variant opacity-40 truncate">{formatAdminTime(log.timestamp)}</p>
                                                             </div>
                                                         </div>
                                                         
