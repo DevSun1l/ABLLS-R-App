@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 const TURSO_URL = process.env.TURSO_DATABASE_URL;
 const TURSO_TOKEN = process.env.TURSO_AUTH_TOKEN;
 
-const localDbPath = path.join(__dirname, 'local.db');
+const localDbPath = path.join(__dirname, '..', 'local.db');
 const localDbUrl = `file:${localDbPath.replace(/\\/g, '/')}`;
 
 const localDb = createClient({ url: localDbUrl });
@@ -19,6 +19,13 @@ const tursoDb = createClient({ url: TURSO_URL, authToken: TURSO_TOKEN });
 
 async function migrate() {
   console.log('Connecting to local.db...');
+  
+  // Disable foreign keys to allow dropping/recreating tables with dependencies
+  try {
+    await tursoDb.execute('PRAGMA foreign_keys = OFF');
+  } catch (e) {
+    console.warn('Could not disable foreign keys:', e.message);
+  }
 
   // Get all table definitions
   const tablesResult = await localDb.execute(
@@ -28,19 +35,27 @@ async function migrate() {
   const tables = tablesResult.rows;
   console.log(`Found ${tables.length} tables: ${tables.map(t => t.name).join(', ')}\n`);
 
+  // Drop tables in dependency order
+  const dropOrder = [
+    'activity_logs', 'admin_accounts', 'assessment_goals', 'assessments', 
+    'student_goals', 'feedback', 'notifications', 'usage_stats', 
+    'students', 'users', 'organizations'
+  ];
+  
+  console.log('Clearing existing tables in Turso...');
+  for (const tableName of dropOrder) {
+    try {
+      await tursoDb.execute(`DROP TABLE IF EXISTS "${tableName}"`);
+    } catch (e) {
+      console.warn(`  Warning dropping ${tableName}: ${e.message}`);
+    }
+  }
+
   for (const table of tables) {
     const tableName = table.name;
     const createSql = table.sql;
 
     console.log(`--- Migrating table: ${tableName} ---`);
-
-    // Drop and recreate table in Turso
-    try {
-      await tursoDb.execute(`DROP TABLE IF EXISTS "${tableName}"`);
-      console.log(`  Dropped existing table (if any)`);
-    } catch (e) {
-      console.warn(`  Warning dropping table: ${e.message}`);
-    }
 
     try {
       await tursoDb.execute(createSql);
