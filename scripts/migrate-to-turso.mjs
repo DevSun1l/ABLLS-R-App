@@ -51,18 +51,30 @@ async function migrate() {
     }
   }
 
-  for (const table of tables) {
-    const tableName = table.name;
-    const createSql = table.sql;
+  // Define creation order to satisfy foreign keys
+  const createOrder = [
+    'organizations', 'users', 'students', 'usage_stats', 
+    'notifications', 'feedback', 'student_goals', 'assessments', 
+    'assessment_goals', 'admin_accounts', 'activity_logs'
+  ];
 
+  for (const tableName of createOrder) {
+    const table = tables.find(t => t.name === tableName);
+    if (!table) continue;
+    
+    const createSql = table.sql;
     console.log(`--- Migrating table: ${tableName} ---`);
 
     try {
       await tursoDb.execute(createSql);
       console.log(`  Created table`);
     } catch (e) {
-      console.error(`  ERROR creating table: ${e.message}`);
-      continue;
+      if (e.message.includes('already exists')) {
+        console.log(`  Table already exists, skipping creation`);
+      } else {
+        console.error(`  ERROR creating table: ${e.message}`);
+        continue;
+      }
     }
 
     // Fetch all rows from local
@@ -87,7 +99,7 @@ async function migrate() {
         await tursoDb.execute({ sql: insertSql, args: values });
         inserted++;
       } catch (e) {
-        console.warn(`  Warning inserting row: ${e.message}`);
+        console.warn(`  Warning inserting row into ${tableName}: ${e.message}`);
       }
     }
     console.log(`  Inserted ${inserted}/${rows.length} rows ✓\n`);

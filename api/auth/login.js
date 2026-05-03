@@ -5,6 +5,12 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({error: 'Method not allowed'});
   try {
      const { email, password } = req.body;
+     
+     if (!process.env.JWT_SECRET) {
+        console.error("JWT_SECRET is missing from environment variables!");
+        return res.status(500).json({ error: "Server configuration error: Missing JWT secret" });
+     }
+
      const db = getDb();
      const result = await db.execute({
         sql: "SELECT * FROM users WHERE email = ?",
