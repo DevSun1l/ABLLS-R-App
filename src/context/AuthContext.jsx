@@ -19,9 +19,16 @@ export const AuthProvider = ({ children }) => {
       });
 
       if (res.ok) {
-        const data = await res.json();
-        setUser(data.user);
-        return data.user;
+        const contentType = res.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          let data = {};
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      }
+          setUser(data.user);
+          return data.user;
+        }
       }
 
       sessionStorage.removeItem('ablls_token');
@@ -54,7 +61,11 @@ export const AuthProvider = ({ children }) => {
          headers: { 'Content-Type': 'application/json' },
          body: JSON.stringify({ email, password })
       });
-      const data = await res.json();
+      let data = {};
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      }
       if (res.ok) {
          sessionStorage.setItem('ablls_token', data.token);
          setUser(data.user);
@@ -73,7 +84,11 @@ export const AuthProvider = ({ children }) => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData)
        });
-       const data = await res.json();
+       let data = {};
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await res.json();
+      }
        if (res.ok) {
           sessionStorage.setItem('ablls_token', data.token);
           setUser(data.user);

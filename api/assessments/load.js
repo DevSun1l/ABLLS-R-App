@@ -7,7 +7,7 @@ export default async function handler(req, res) {
      const decoded = requireAuth(req);
      if (!decoded) return res.status(401).json({error: 'Unauthorized'});
 
-     // Vercel routes without path logic get query from URL
+     // Parse query from URL
      const url = new URL(req.url, `http://${req.headers.host}`);
      const studentId = url.searchParams.get('studentId');
 

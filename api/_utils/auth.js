@@ -34,7 +34,7 @@ export const verifyToken = (token) => {
    }
 };
 
-// Middleware-like helper for vercel api routes
+// Middleware-like helper for API routes
 export const requireAuth = (req) => {
    const authHeader = req.headers.authorization;
    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
