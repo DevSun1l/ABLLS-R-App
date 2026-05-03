@@ -1,12 +1,15 @@
 import { createClient } from '@libsql/client';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const TURSO_URL = 'libsql://cognify-devsun1l.aws-ap-south-1.turso.io';
-const TURSO_TOKEN = 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3Nzc4MDM2NzEsImlkIjoiMDE5ZGVkNWEtNjYwMS03ZDcyLThlNmYtOTYzNDU2N2JhZWJkIiwicmlkIjoiMjBjMDk5NTEtMGFmNS00MTNhLWJiZjEtYmQ0NzcyMTAxZjY1In0.SaZXWtnS24l1biafrehLKQm_EwQ9tqf1_OENemttJrBPHFWKwi-DE3wfOFTDVMtVwu9tkfmblewFDyC7_c3oDg';
+const TURSO_URL = process.env.TURSO_DATABASE_URL;
+const TURSO_TOKEN = process.env.TURSO_AUTH_TOKEN;
 
 const localDbPath = path.join(__dirname, 'local.db');
 const localDbUrl = `file:${localDbPath.replace(/\\/g, '/')}`;

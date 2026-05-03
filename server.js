@@ -4,8 +4,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import app, { registerApiRoutes } from './app.mjs';
 
-dotenv.config({ path: '.env.local' });
-dotenv.config(); // fallback to .env if needed
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
