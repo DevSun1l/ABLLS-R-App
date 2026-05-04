@@ -3,11 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 export const getDb = () => {
    const env = globalThis.process?.env || {};
    
-   const supabaseUrl = env.SUPABASE_URL;
-   const supabaseAnonKey = env.SUPABASE_ANON_KEY;
+   const supabaseUrl = env.VITE_SUPABASE_URL;
+   const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY;
 
    if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error('Missing Supabase environment variables');
+      throw new Error('Missing Supabase environment variables (VITE_ prefix expected)');
    }
 
    return createClient(supabaseUrl, supabaseAnonKey);
