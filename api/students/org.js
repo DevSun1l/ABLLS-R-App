@@ -35,24 +35,28 @@ export default async function handler(req, res) {
      const db = getDb();
      
      // Fetch students attached to the user's organization
-     const studentsResult = await db.execute({
-        sql: "SELECT id, name, age_years, age_months, diagnoses, notes, created_at, created_by FROM students WHERE org_id = ? ORDER BY created_at DESC",
-        args: [decoded.org_id]
-     });
+     const { data: studentsData, error: studentsError } = await db
+       .from('students')
+       .select('id, name, age_years, age_months, diagnoses, notes, created_at, created_by')
+       .eq('org_id', decoded.org_id)
+       .order('created_at', { ascending: false });
 
-     const assessmentsResult = await db.execute({
-        sql: `
-          SELECT student_id, domain_data, status, created_at
-          FROM assessments
-          WHERE student_id IN (SELECT id FROM students WHERE org_id = ?)
-          ORDER BY datetime(created_at) DESC
-        `,
-        args: [decoded.org_id]
-     });
+     if (studentsError) return res.status(500).json({error: studentsError.message});
+
+     const studentIds = studentsData.map(s => s.id);
+     
+     const { data: assessmentsData, error: assessmentsError } = await db
+       .from('assessments')
+       .select('student_id, domain_data, status, created_at')
+       .in('student_id', studentIds)
+       .order('created_at', { ascending: false });
+
+     if (assessmentsError) return res.status(500).json({error: assessmentsError.message});
 
      const latestAssessmentByStudent = new Map();
      const assessmentCountByStudent = new Map();
-     assessmentsResult.rows.forEach((row) => {
+     
+     assessmentsData.forEach((row) => {
         assessmentCountByStudent.set(
           row.student_id,
           (assessmentCountByStudent.get(row.student_id) || 0) + 1
@@ -62,15 +66,13 @@ export default async function handler(req, res) {
         }
      });
 
-     const students = studentsResult.rows.map(row => {
+     const students = studentsData.map(row => {
         const latestAssessment = latestAssessmentByStudent.get(row.id);
-        const domains = latestAssessment?.domain_data
-          ? (typeof latestAssessment.domain_data === 'string' ? JSON.parse(latestAssessment.domain_data) : latestAssessment.domain_data)
-          : {};
+        const domains = latestAssessment?.domain_data || {};
 
         return {
         ...row,
-        diagnoses: row.diagnoses ? JSON.parse(row.diagnoses) : [],
+        diagnoses: row.diagnoses || [],
         ageYears: row.age_years,
         ageMonths: row.age_months,
         domains,

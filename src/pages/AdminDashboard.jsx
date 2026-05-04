@@ -195,6 +195,10 @@ const AdminDashboard = () => {
 
     const handleToggleBlock = async (userToUpdate) => {
         const newStatus = userToUpdate.status === 'blocked' ? 'active' : 'blocked';
+        const actionText = newStatus === 'blocked' ? 'block' : 'unblock';
+        
+        if (!window.confirm(`Are you sure you want to ${actionText} this user's access?`)) return;
+        
         setProcessing(true);
         try {
             const token = sessionStorage.getItem('ablls_token');

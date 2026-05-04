@@ -9,22 +9,19 @@ export default async function handler(req, res) {
     if (!decoded) return res.status(401).json({ error: 'Unauthorized' });
 
     const db = getDb();
-    await ensureNotificationsTable(db);
 
-    const result = await db.execute({
-      sql: `
-        SELECT id, user_id, type, title, message, details, read_at, created_at
-        FROM notifications
-        WHERE user_id = ?
-        ORDER BY datetime(created_at) DESC
-        LIMIT 20
-      `,
-      args: [decoded.id],
-    });
+    const { data: notifications, error } = await db
+      .from('notifications')
+      .select('id, user_id, type, title, message, details, read_at, created_at')
+      .eq('user_id', decoded.id)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error) return res.status(500).json({error: error.message});
 
     return res.status(200).json({
-      notifications: result.rows,
-      unreadCount: result.rows.filter((row) => !row.read_at).length,
+      notifications,
+      unreadCount: notifications.filter((row) => !row.read_at).length,
     });
   } catch (e) {
     return res.status(500).json({ error: e.message });

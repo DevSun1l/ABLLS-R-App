@@ -13,10 +13,14 @@ export default async function handler(req, res) {
      const db = getDb();
      
      // Fetch raw feedback entries
-     const feedbackResult = await db.execute("SELECT * FROM feedback ORDER BY created_at DESC");
+     const { data: entries, error } = await db
+       .from('feedback')
+       .select('*')
+       .order('created_at', { ascending: false });
+
+     if (error) return res.status(500).json({error: error.message});
      
      // Calculate insights
-     const entries = feedbackResult.rows;
      const avgRating = entries.length > 0 ? entries.reduce((acc, curr) => acc + (curr.rating || 0), 0) / entries.length : 0;
      
      const moodDistribution = {

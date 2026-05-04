@@ -9,26 +9,38 @@ export default async function handler(req, res) {
 
       const db = getDb();
      
-      // Fetch users with their student counts, assessment counts, and unique students assessed
-      const usersResult = await db.execute(`
-         SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.org_id, u.status, u.created_at,
-         (SELECT COUNT(DISTINCT s.id) FROM students s LEFT JOIN assessments a ON s.id = a.student_id WHERE s.created_by = u.id OR a.assessor_id = u.id) as student_count,
-         (SELECT COUNT(*) FROM assessments a WHERE a.assessor_id = u.id) as assessment_count,
-         (SELECT COUNT(DISTINCT a.student_id) FROM assessments a WHERE a.assessor_id = u.id) as students_assessed_count
-         FROM users u
-      `);
+      const [usersRes, studentsRes, assessmentsRes, logsRes] = await Promise.all([
+         db.from('users').select('id, email, first_name, last_name, role, org_id, status, created_at'),
+         db.from('students').select('id, name, age_years, age_months, org_id, created_at, created_by'),
+         db.from('assessments').select('id, student_id, assessor_id, date, domain_data, status, created_at'),
+         db.from('activity_logs').select('*').order('timestamp', { ascending: false })
+      ]);
 
-      const studentsResult = await db.execute("SELECT id, name, age_years, age_months, org_id, created_at, created_by FROM students");
-      const assessmentsResult = await db.execute("SELECT id, student_id, assessor_id, date, domain_data, status, created_at FROM assessments");
-      
-      // Fetch all logs for the system-wide activity redesigned tab
-      const loginLogsResult = await db.execute("SELECT * FROM activity_logs ORDER BY timestamp DESC");
+      if (usersRes.error) throw usersRes.error;
+      if (studentsRes.error) throw studentsRes.error;
+      if (assessmentsRes.error) throw assessmentsRes.error;
+      if (logsRes.error) throw logsRes.error;
+
+      // Aggregating counts manually since Supabase client doesn't support complex subqueries easily
+      const users = usersRes.data.map(u => {
+         const userAssessments = assessmentsRes.data.filter(a => a.assessor_id === u.id);
+         const studentsCreated = studentsRes.data.filter(s => s.created_by === u.id);
+         const studentsAssessedIds = new Set(userAssessments.map(a => a.student_id));
+         const allRelatedStudentIds = new Set([...studentsCreated.map(s => s.id), ...Array.from(studentsAssessedIds)]);
+
+         return {
+            ...u,
+            student_count: allRelatedStudentIds.size,
+            assessment_count: userAssessments.length,
+            students_assessed_count: studentsAssessedIds.size
+         };
+      });
      
       return res.status(200).json({ 
-         users: usersResult.rows,
-         students: studentsResult.rows,
-         assessments: assessmentsResult.rows,
-         loginLogs: loginLogsResult.rows
+         users,
+         students: studentsRes.data,
+         assessments: assessmentsRes.data,
+         loginLogs: logsRes.data
       });
   } catch(e) {
       res.status(500).json({error: e.message});

@@ -15,19 +15,20 @@ export default async function handler(req, res) {
      const db = getDb();
      const feedbackId = `fb_${uuidv4().split('-')[0]}`;
      
-     await db.execute({
-        sql: "INSERT INTO feedback (id, user_id, name, assessor_type, rating, one_word, mood, comments) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        args: [
-           feedbackId, 
-           decoded?.id || null, 
-           name || 'Anonymous', 
-           assessorType || 'Other', 
-           rating || 0, 
-           oneWord || '', 
-           mood || '', 
-           comments || ''
-        ]
-     });
+     const { error } = await db
+       .from('feedback')
+       .insert({
+          id: feedbackId, 
+          user_id: decoded?.id || null, 
+          name: name || 'Anonymous', 
+          assessor_type: assessorType || 'Other', 
+          rating: rating || 0, 
+          one_word: oneWord || '', 
+          mood: mood || '', 
+          comments: comments || ''
+       });
+
+     if (error) return res.status(500).json({error: error.message});
      
      return res.status(201).json({ success: true, feedbackId });
   } catch(e) {

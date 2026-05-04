@@ -14,47 +14,46 @@ export default async function handler(req, res) {
      const db = getDb();
      
      // Check if email exists
-     let existing;
-     try {
-         existing = await db.execute({
-            sql: "SELECT id FROM users WHERE email = ?",
-            args: [email]
-         });
-     } catch(err) {
-         return res.status(500).json({error: err.message});
-     }
+     const { data: existing, error: checkError } = await db
+       .from('users')
+       .select('id')
+       .eq('email', email);
+
+     if (checkError) return res.status(500).json({error: checkError.message});
      
-     if (existing && existing.rows.length > 0) {
+     if (existing && existing.length > 0) {
         return res.status(400).json({error: 'Email already registered'});
      }
      
-     const tx = await db.transaction('write');
-     try {
-         // Create organization (simplified mapping, creates org for every new user if free text)
-         const orgId = `org_${uuidv4().substring(0,8)}`;
-         await tx.execute({
-             sql: "INSERT INTO organizations (id, name) VALUES (?, ?)",
-             args: [orgId, organization]
-         });
-         
-         const userId = `usr_${uuidv4().substring(0,8)}`;
-         const hashed = await hashPassword(password);
-         
-         await tx.execute({
-             sql: "INSERT INTO users (id, email, password_hash, first_name, last_name, role, org_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-             args: [userId, email, hashed, firstName, lastName, role, orgId]
-         });
-         
-         await tx.commit();
-         
-         const user = { id: userId, email, role, first_name: firstName, last_name: lastName, org_id: orgId };
-         const token = generateToken(user);
-         
-         return res.status(201).json({ token, user });
-     } catch(e) {
-         await tx.rollback();
-         throw e;
-     }
+     // Create organization
+     const orgId = `org_${uuidv4().substring(0,8)}`;
+     const { error: orgError } = await db
+       .from('organizations')
+       .insert({ id: orgId, name: organization });
+
+     if (orgError) return res.status(500).json({error: orgError.message});
+     
+     const userId = `usr_${uuidv4().substring(0,8)}`;
+     const hashed = await hashPassword(password);
+     
+     const { error: userError } = await db
+       .from('users')
+       .insert({
+          id: userId,
+          email,
+          password_hash: hashed,
+          first_name: firstName,
+          last_name: lastName,
+          role,
+          org_id: orgId
+       });
+
+     if (userError) return res.status(500).json({error: userError.message});
+     
+     const user = { id: userId, email, role, first_name: firstName, last_name: lastName, org_id: orgId };
+     const token = generateToken(user);
+     
+     return res.status(201).json({ token, user });
   } catch(e) {
      res.status(500).json({error: e.message});
   }

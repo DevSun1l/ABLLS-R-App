@@ -19,43 +19,50 @@ export default async function handler(req, res) {
     if (!decoded) return res.status(401).json({ error: 'Unauthorized' });
 
     const db = getDb();
-    await ensureNotificationsTable(db);
 
     const [logsResult, studentsResult, notificationsResult] = await Promise.all([
-      db.execute(`
-        SELECT
-          l.id,
-          l.user_id,
-          l.action,
-          l.details,
-          l.timestamp,
-          u.first_name,
-          u.last_name,
-          u.role,
-          u.org_id
-        FROM activity_logs l
-        LEFT JOIN users u ON u.id = l.user_id
-        ORDER BY datetime(l.timestamp) DESC
-        LIMIT 50
-      `),
-      db.execute("SELECT id, name, org_id FROM students"),
-      db.execute({
-        sql: `
-          SELECT id, type, title, message, details, read_at, created_at
-          FROM notifications
-          WHERE user_id = ?
-          ORDER BY datetime(created_at) DESC
-          LIMIT 10
-        `,
-        args: [decoded.id],
-      }),
+      db
+        .from('activity_logs')
+        .select(`
+          id,
+          user_id,
+          action,
+          details,
+          timestamp,
+          users (
+            first_name,
+            last_name,
+            role,
+            org_id
+          )
+        `)
+        .order('timestamp', { ascending: false })
+        .limit(50),
+      db.from('students').select('id, name, org_id'),
+      db
+        .from('notifications')
+        .select('id, type, title, message, details, read_at, created_at')
+        .eq('user_id', decoded.id)
+        .order('created_at', { ascending: false })
+        .limit(10),
     ]);
 
+    if (logsResult.error) throw logsResult.error;
+    if (studentsResult.error) throw studentsResult.error;
+    if (notificationsResult.error) throw notificationsResult.error;
+
     const studentsById = new Map(
-      studentsResult.rows.map((student) => [student.id, student])
+      studentsResult.data.map((student) => [student.id, student])
     );
 
-    const activity = logsResult.rows
+    const activity = logsResult.data
+      .map(log => ({
+         ...log,
+         first_name: log.users?.first_name,
+         last_name: log.users?.last_name,
+         role: log.users?.role,
+         org_id: log.users?.org_id
+      }))
       .filter((log) => {
         const details = parseDetails(log.details);
         const student = details.student_id ? studentsById.get(details.student_id) : null;
@@ -137,8 +144,8 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       activity,
-      notifications: notificationsResult.rows,
-      unreadCount: notificationsResult.rows.filter((row) => !row.read_at).length,
+      notifications: notificationsResult.data,
+      unreadCount: notificationsResult.data.filter((row) => !row.read_at).length,
       generatedAt: new Date().toISOString(),
     });
   } catch (e) {

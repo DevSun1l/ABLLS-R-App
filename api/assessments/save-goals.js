@@ -10,16 +10,22 @@ export default async function handler(req, res) {
      const { studentId, smartGoals } = req.body;
      const db = getDb();
      
-     const existing = await db.execute({
-        sql: "SELECT id FROM assessments WHERE student_id = ? ORDER BY created_at DESC LIMIT 1",
-        args: [studentId]
-     });
+     const { data: assessments, error: checkError } = await db
+        .from('assessments')
+        .select('id')
+        .eq('student_id', studentId)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+     if (checkError) return res.status(500).json({error: checkError.message});
      
-     if (existing.rows.length > 0) {
-        await db.execute({
-           sql: "UPDATE assessments SET smart_goals = ? WHERE id = ?",
-           args: [JSON.stringify(smartGoals), existing.rows[0].id]
-        });
+     if (assessments && assessments.length > 0) {
+        const { error: updateError } = await db
+          .from('assessments')
+          .update({ smart_goals: smartGoals })
+          .eq('id', assessments[0].id);
+          
+        if (updateError) return res.status(500).json({error: updateError.message});
         return res.status(200).json({ success: true });
      } else {
         return res.status(400).json({error: 'No active assessment found'});

@@ -14,15 +14,26 @@ export default async function handler(req, res) {
      const name = decoded.first_name ? `${decoded.first_name} ${decoded.last_name || ''}` : 'Unknown';
      
      // Insert feedback entry
-     await db.execute({
-        sql: "INSERT INTO feedback (id, user_id, name, assessor_type, rating, one_word, mood, comments) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        args: [id, decoded.id, name, decoded.role || 'Therapist', rating, word_rating, mood, description]
-     });
+     const { error: fbError } = await db
+       .from('feedback')
+       .insert({
+          id, 
+          user_id: decoded.id, 
+          name, 
+          assessor_type: decoded.role || 'Therapist', 
+          rating, 
+          one_word: word_rating, 
+          mood, 
+          comments: description
+       });
+
+     if (fbError) return res.status(500).json({error: fbError.message});
 
      // Log feedback activity
-     await db.execute({
-        sql: "INSERT INTO activity_logs (user_id, action, details) VALUES (?, ?, ?)",
-        args: [decoded.id, 'feedback_submitted', JSON.stringify({ rating, mood })]
+     await db.from('activity_logs').insert({
+        user_id: decoded.id, 
+        action: 'feedback_submitted', 
+        details: { rating, mood }
      });
 
      return res.status(200).json({ success: true });

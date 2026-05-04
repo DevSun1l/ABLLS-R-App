@@ -15,16 +15,18 @@ export default async function handler(req, res) {
 
      const db = getDb();
      
-     const result = await db.execute({
-        sql: "SELECT * FROM assessments WHERE student_id = ? ORDER BY created_at DESC LIMIT 1",
-        args: [studentId]
-     });
+     const { data: assessments, error } = await db
+        .from('assessments')
+        .select('*')
+        .eq('student_id', studentId)
+        .order('created_at', { ascending: false })
+        .limit(1);
      
-     if (result.rows.length > 0) {
-        const assessment = result.rows[0];
-        // Ensure valid JSON mapping for domains
-        const parsedDomains = assessment.domain_data ? JSON.parse(assessment.domain_data) : {};
-        return res.status(200).json({ assessment: { ...assessment, domain_data: parsedDomains } });
+     if (error) return res.status(500).json({error: error.message});
+
+     if (assessments && assessments.length > 0) {
+        const assessment = assessments[0];
+        return res.status(200).json({ assessment });
      }
      
      return res.status(200).json({ assessment: null });

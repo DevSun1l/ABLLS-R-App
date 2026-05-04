@@ -12,16 +12,16 @@ export default async function handler(req, res) {
      }
 
      const db = getDb();
-     const result = await db.execute({
-        sql: "SELECT * FROM users WHERE email = ?",
-        args: [email]
-     });
+     const { data: users, error: userError } = await db
+       .from('users')
+       .select('*')
+       .eq('email', email);
      
-     if (result.rows.length === 0) {
+     if (userError || !users || users.length === 0) {
         return res.status(401).json({error: 'Invalid credentials'});
      }
      
-     const user = result.rows[0];
+     const user = users[0];
 
      if (user.status === 'blocked') {
         return res.status(403).json({ 
@@ -36,9 +36,10 @@ export default async function handler(req, res) {
      }
      
      // Log login activity
-     await db.execute({
-        sql: "INSERT INTO activity_logs (user_id, action, details) VALUES (?, ?, ?)",
-        args: [user.id, 'login', JSON.stringify({ ip: req.headers['x-forwarded-for'] || 'local' })]
+     await db.from('activity_logs').insert({
+        user_id: user.id,
+        action: 'login',
+        details: { ip: req.headers['x-forwarded-for'] || 'local' }
      });
 
      const token = generateToken(user);

@@ -6,14 +6,14 @@
   "scripts": {
     "dev:frontend": "vite",
     "dev:backend": "node server.js",
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev": "vite build && node server.js",
     "build": "vite build",
-    "start": "NODE_ENV=production node server.js",
+    "start": "node server.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@libsql/client": "^0.17.2",
+    "@supabase/supabase-js": "^2.105.1",
     "bcryptjs": "^3.0.3",
     "concurrently": "^9.2.1",
     "cors": "^2.8.6",

@@ -12,16 +12,14 @@ export default async function handler(req, res) {
     if (!notificationId) return res.status(400).json({ error: 'Missing notificationId' });
 
     const db = getDb();
-    await ensureNotificationsTable(db);
 
-    await db.execute({
-      sql: `
-        UPDATE notifications
-        SET read_at = COALESCE(read_at, ?)
-        WHERE id = ? AND user_id = ?
-      `,
-      args: [new Date().toISOString(), notificationId, decoded.id],
-    });
+    const { error } = await db
+      .from('notifications')
+      .update({ read_at: new Date().toISOString() })
+      .eq('id', notificationId)
+      .eq('user_id', decoded.id);
+
+    if (error) return res.status(500).json({error: error.message});
 
     return res.status(200).json({ success: true });
   } catch (e) {

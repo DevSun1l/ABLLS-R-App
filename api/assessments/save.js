@@ -10,35 +10,51 @@ export default async function handler(req, res) {
      const { studentId, domainsData, status } = req.body;
      const db = getDb();
      
-     // Check if there is an active assessment for this student by this assessor
-     const existing = await db.execute({
-        sql: "SELECT id FROM assessments WHERE student_id = ? AND status = 'in_progress' ORDER BY created_at DESC LIMIT 1",
-        args: [studentId]
-     });
+     // Check if there is an active assessment for this student
+     const { data: assessments, error: checkError } = await db
+        .from('assessments')
+        .select('id')
+        .eq('student_id', studentId)
+        .eq('status', 'in_progress')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+     if (checkError) return res.status(500).json({error: checkError.message});
      
      let assessmentId;
-     if (existing.rows.length > 0) {
-        assessmentId = existing.rows[0].id;
-        await db.execute({
-           sql: "UPDATE assessments SET domain_data = ?, status = ?, date = ? WHERE id = ?",
-           args: [JSON.stringify(domainsData), status || 'in_progress', new Date().toISOString(), assessmentId]
-        });
+     if (assessments && assessments.length > 0) {
+        assessmentId = assessments[0].id;
+        const { error: updateError } = await db
+          .from('assessments')
+          .update({
+             domain_data: domainsData,
+             status: status || 'in_progress',
+             date: new Date().toISOString()
+          })
+          .eq('id', assessmentId);
+        
+        if (updateError) return res.status(500).json({error: updateError.message});
      } else {
         assessmentId = `ass_${Math.random().toString(36).substring(2,10)}`;
-        await db.execute({
-           sql: "INSERT INTO assessments (id, student_id, assessor_id, date, domain_data, status) VALUES (?, ?, ?, ?, ?, ?)",
-           args: [assessmentId, studentId, decoded.id, new Date().toISOString(), JSON.stringify(domainsData), status || 'in_progress']
-        });
+        const { error: insertError } = await db
+          .from('assessments')
+          .insert({
+             id: assessmentId,
+             student_id: studentId,
+             assessor_id: decoded.id,
+             date: new Date().toISOString(),
+             domain_data: domainsData,
+             status: status || 'in_progress'
+          });
+
+        if (insertError) return res.status(500).json({error: insertError.message});
         
         // Log the action
-        await db.execute({
-           sql: "INSERT INTO activity_logs (user_id, action, details, timestamp) VALUES (?, ?, ?, ?)",
-           args: [
-              decoded.id, 
-              'assessment_created', 
-              JSON.stringify({ assessment_id: assessmentId, student_id: studentId }), 
-              new Date().toISOString()
-           ]
+        await db.from('activity_logs').insert({
+           user_id: decoded.id, 
+           action: 'assessment_created', 
+           details: { assessment_id: assessmentId, student_id: studentId }, 
+           timestamp: new Date().toISOString()
         });
      }
      

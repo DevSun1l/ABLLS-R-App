@@ -26,42 +26,39 @@ export default async function handler(req, res) {
      }
 
      const db = getDb();
-     await ensureNotificationsTable(db);
-     await ensureAdminAccountsTable(db);
      
-     const userResult = await db.execute({
-        sql: "SELECT id, email, first_name, last_name, role, org_id, status FROM users WHERE id = ?",
-        args: [userId]
-     });
+     const { data: users, error: userError } = await db
+       .from('users')
+       .select('id, email, first_name, last_name, role, org_id, status')
+       .eq('id', userId);
 
-     if (userResult.rows.length === 0) {
+     if (userError || !users || users.length === 0) {
         return res.status(404).json({error: 'Faculty member not found'});
      }
 
-     const targetUser = userResult.rows[0];
+     const targetUser = users[0];
      const baseLocalPart = `${normalizeName(targetUser.first_name, targetUser.last_name) || 'faculty'}admin`;
      let nextEmail = `${baseLocalPart}@cognifycareteam.com`;
      let counter = 2;
 
-     const existingAdminAccount = await db.execute({
-        sql: `
-          SELECT a.source_user_id, a.admin_user_id, u.email
-          FROM admin_accounts a
-          JOIN users u ON u.id = a.admin_user_id
-          WHERE a.source_user_id = ?
-        `,
-        args: [targetUser.id]
-     });
+     const { data: adminAccounts, error: adminAccError } = await db
+       .from('admin_accounts')
+       .select('source_user_id, admin_user_id, users!admin_accounts_admin_user_id_fkey(email)')
+       .eq('source_user_id', targetUser.id);
 
-     if (existingAdminAccount.rows.length > 0) {
-        nextEmail = existingAdminAccount.rows[0].email;
+     if (adminAccError) return res.status(500).json({error: adminAccError.message});
+
+     if (adminAccounts && adminAccounts.length > 0) {
+        nextEmail = adminAccounts[0].users.email;
      } else {
         while (true) {
-           const existingEmail = await db.execute({
-              sql: "SELECT id FROM users WHERE email = ?",
-              args: [nextEmail]
-           });
-           if (existingEmail.rows.length === 0) break;
+           const { data: existingEmail, error: emailError } = await db
+              .from('users')
+              .select('id')
+              .eq('email', nextEmail);
+           
+           if (emailError) return res.status(500).json({error: emailError.message});
+           if (!existingEmail || existingEmail.length === 0) break;
            nextEmail = `${baseLocalPart}${counter}@cognifycareteam.com`;
            counter += 1;
         }
@@ -70,55 +67,60 @@ export default async function handler(req, res) {
      const nextPassword = buildAdminPassword(targetUser.first_name, targetUser.last_name);
      const passwordHash = await bcrypt.hash(nextPassword, 10);
 
-     let adminUserId = existingAdminAccount.rows[0]?.admin_user_id;
+     let adminUserId = adminAccounts?.[0]?.admin_user_id;
      if (adminUserId) {
-        await db.execute({
-           sql: "UPDATE users SET email = ?, password_hash = ?, status = ? WHERE id = ?",
-           args: [nextEmail, passwordHash, 'active', adminUserId]
-        });
+        const { error: updateError } = await db
+          .from('users')
+          .update({ email: nextEmail, password_hash: passwordHash, status: 'active' })
+          .eq('id', adminUserId);
+        if (updateError) return res.status(500).json({error: updateError.message});
      } else {
         adminUserId = `usr_${uuidv4().split('-')[0]}`;
-        await db.execute({
-           sql: "INSERT INTO users (id, email, password_hash, first_name, last_name, role, org_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-           args: [adminUserId, nextEmail, passwordHash, targetUser.first_name, targetUser.last_name, 'admin', targetUser.org_id, 'active']
-        });
-        await db.execute({
-           sql: "INSERT INTO admin_accounts (source_user_id, admin_user_id) VALUES (?, ?)",
-           args: [targetUser.id, adminUserId]
-        });
+        const { error: insertUserError } = await db
+          .from('users')
+          .insert({
+             id: adminUserId, 
+             email: nextEmail, 
+             password_hash: passwordHash, 
+             first_name: targetUser.first_name, 
+             last_name: targetUser.last_name, 
+             role: 'admin', 
+             org_id: targetUser.org_id, 
+             status: 'active'
+          });
+        if (insertUserError) return res.status(500).json({error: insertUserError.message});
+
+        const { error: insertAccError } = await db
+          .from('admin_accounts')
+          .insert({ source_user_id: targetUser.id, admin_user_id: adminUserId });
+        if (insertAccError) return res.status(500).json({error: insertAccError.message});
      }
 
-     await db.execute({
-        sql: "INSERT INTO notifications (id, user_id, type, title, message, details) VALUES (?, ?, ?, ?, ?, ?)",
-        args: [
-          `ntf_${uuidv4().split('-')[0]}`,
-          targetUser.id,
-          'admin_promotion',
-          'You have been made an admin',
-          'Your original user login still works. Open this notification to view your separate admin credentials and switch to the admin account.',
-          JSON.stringify({
-            adminUsername: nextEmail,
-            adminPassword: nextPassword,
-            previousEmail: targetUser.email,
-            promotedAt: new Date().toISOString(),
-            adminUserId,
-          })
-        ]
+     await db.from('notifications').insert({
+        id: `ntf_${uuidv4().split('-')[0]}`,
+        user_id: targetUser.id,
+        type: 'admin_promotion',
+        title: 'You have been made an admin',
+        message: 'Your original user login still works. Open this notification to view your separate admin credentials and switch to the admin account.',
+        details: {
+          adminUsername: nextEmail,
+          adminPassword: nextPassword,
+          previousEmail: targetUser.email,
+          promotedAt: new Date().toISOString(),
+          adminUserId,
+        }
      });
 
-     await db.execute({
-        sql: "INSERT INTO activity_logs (user_id, action, details, timestamp) VALUES (?, ?, ?, ?)",
-        args: [
-          targetUser.id,
-          'admin_promoted',
-          JSON.stringify({
-            promoted_by: decoded.id,
-            previous_email: targetUser.email,
-            new_email: nextEmail,
-            admin_user_id: adminUserId,
-          }),
-          new Date().toISOString()
-        ]
+     await db.from('activity_logs').insert({
+        user_id: targetUser.id,
+        action: 'admin_promoted',
+        details: {
+          promoted_by: decoded.id,
+          previous_email: targetUser.email,
+          new_email: nextEmail,
+          admin_user_id: adminUserId,
+        },
+        timestamp: new Date().toISOString()
      });
 
      return res.status(201).json({

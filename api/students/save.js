@@ -10,31 +10,48 @@ export default async function handler(req, res) {
      const { id, name, ageYears, ageMonths, diagnoses, notes } = req.body;
      const db = getDb();
      
-     const existing = await db.execute({
-        sql: "SELECT id FROM students WHERE id = ?",
-        args: [id]
-     });
+     const { data: existing, error: checkError } = await db
+       .from('students')
+       .select('id')
+       .eq('id', id);
+
+     if (checkError) return res.status(500).json({error: checkError.message});
      
-     if (existing.rows.length > 0) {
-        await db.execute({
-           sql: "UPDATE students SET name=?, age_years=?, age_months=?, diagnoses=?, notes=? WHERE id=?",
-           args: [name, ageYears, ageMonths, JSON.stringify(diagnoses), notes, id]
-        });
+     if (existing && existing.length > 0) {
+        const { error: updateError } = await db
+          .from('students')
+          .update({
+             name,
+             age_years: ageYears,
+             age_months: ageMonths,
+             diagnoses,
+             notes
+          })
+          .eq('id', id);
+        
+        if (updateError) return res.status(500).json({error: updateError.message});
      } else {
-        await db.execute({
-           sql: "INSERT INTO students (id, org_id, created_by, name, age_years, age_months, diagnoses, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-           args: [id, decoded.org_id, decoded.id, name, ageYears, ageMonths, JSON.stringify(diagnoses), notes]
-        });
+        const { error: insertError } = await db
+          .from('students')
+          .insert({
+             id,
+             org_id: decoded.org_id,
+             created_by: decoded.id,
+             name,
+             age_years: ageYears,
+             age_months: ageMonths,
+             diagnoses,
+             notes
+          });
+
+        if (insertError) return res.status(500).json({error: insertError.message});
         
         // Log the action
-        await db.execute({
-           sql: "INSERT INTO activity_logs (user_id, action, details, timestamp) VALUES (?, ?, ?, ?)",
-           args: [
-              decoded.id, 
-              'student_created', 
-              JSON.stringify({ student_id: id, student_name: name, org_id: decoded.org_id }), 
-              new Date().toISOString()
-           ]
+        await db.from('activity_logs').insert({
+           user_id: decoded.id, 
+           action: 'student_created', 
+           details: { student_id: id, student_name: name, org_id: decoded.org_id }, 
+           timestamp: new Date().toISOString()
         });
      }
      

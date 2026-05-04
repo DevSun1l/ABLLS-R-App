@@ -14,16 +14,16 @@ export default async function handler(req, res) {
      const db = getDb();
      
      // Get student name for logging before deletion
-     const student = await db.execute({
-        sql: "SELECT id, name, created_by, org_id FROM students WHERE id = ?",
-        args: [studentId]
-     });
+     const { data: students, error: studentError } = await db
+       .from('students')
+       .select('id, name, created_by, org_id')
+       .eq('id', studentId);
 
-     if (student.rows.length === 0) {
+     if (studentError || !students || students.length === 0) {
         return res.status(404).json({error: 'Student not found'});
      }
 
-     const studentRecord = student.rows[0];
+     const studentRecord = students[0];
      const studentName = studentRecord.name;
 
      if (decoded.role !== 'admin' && studentRecord.org_id !== decoded.org_id) {
@@ -31,18 +31,15 @@ export default async function handler(req, res) {
      }
 
      // Delete student and their assessments
-     await db.execute({ sql: "DELETE FROM assessments WHERE student_id = ?", args: [studentId] });
-     await db.execute({ sql: "DELETE FROM students WHERE id = ?", args: [studentId] });
+     await db.from('assessments').delete().eq('student_id', studentId);
+     await db.from('students').delete().eq('id', studentId);
 
      // Log the action
-     await db.execute({
-        sql: "INSERT INTO activity_logs (user_id, action, details, timestamp) VALUES (?, ?, ?, ?)",
-        args: [
-           decoded.id, 
-           'student_deleted', 
-           JSON.stringify({ student_id: studentId, student_name: studentName }), 
-           new Date().toISOString()
-        ]
+     await db.from('activity_logs').insert({
+        user_id: decoded.id, 
+        action: 'student_deleted', 
+        details: { student_id: studentId, student_name: studentName }, 
+        timestamp: new Date().toISOString()
      });
 
      return res.status(200).json({ success: true });

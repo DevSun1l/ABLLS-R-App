@@ -23,13 +23,13 @@ export default async function handler(req, res) {
 
      const db = getDb();
      
-     const result = await db.execute({
-        sql: "UPDATE users SET status = ? WHERE id = ?",
-        args: [status, userId]
-     });
+     const { error } = await db
+       .from('users')
+       .update({ status: status })
+       .eq('id', userId);
 
-     if (result.rowsAffected === 0) {
-        return res.status(404).json({error: 'User not found'});
+     if (error) {
+        return res.status(404).json({error: 'User not found or update failed'});
      }
 
      return res.status(200).json({ message: `User status updated to ${status}` });

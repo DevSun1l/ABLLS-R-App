@@ -10,17 +10,17 @@ export default async function handler(req, res) {
       const { id } = req.query;
       const db = getDb();
 
-      const result = await db.execute({
-         sql: "SELECT * FROM students WHERE id = ?",
-         args: [id]
-      });
+      const { data: students, error } = await db
+         .from('students')
+         .select('*')
+         .eq('id', id);
 
-      if (result.rows.length === 0) {
+      if (error || !students || students.length === 0) {
          return res.status(404).json({ error: "Student not found" });
       }
 
-      const student = result.rows[0];
-      student.diagnoses = JSON.parse(student.diagnoses || '[]');
+      const student = students[0];
+      student.diagnoses = student.diagnoses || [];
 
       return res.status(200).json({ student });
    } catch (e) {
