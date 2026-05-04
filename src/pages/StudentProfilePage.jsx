@@ -68,6 +68,14 @@ const StudentProfilePage = () => {
 
   const [submitAction, setSubmitAction] = useState('initiate');
 
+  const resolveCreatedBy = () => {
+    const candidate = (user?.id || '').trim();
+    if (!candidate || candidate.startsWith('legacy_') || user?.is_session_fallback) {
+      return null;
+    }
+    return candidate;
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     let targetId = id || `stu_${uuidv4().split('-')[0]}`;
@@ -79,7 +87,7 @@ const StudentProfilePage = () => {
          age_months: formData.ageMonths,
          diagnoses: formData.diagnoses,
          notes: formData.notes,
-         created_by: user.id,
+         created_by: resolveCreatedBy(),
          org_id: user.org_id,
        };
 
@@ -89,7 +97,7 @@ const StudentProfilePage = () => {
 
        const { error } = await supabase
           .from('students')
-          .upsert(studentPayload);
+          .upsert(studentPayload, { onConflict: 'id' });
 
        // #region agent log
        fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'pre-fix',hypothesisId:'H4',location:'src/pages/StudentProfilePage.jsx:97',message:'student save result',data:{ok:!error,errorCode:error?.code||null,errorMessage:error?.message||null},timestamp:Date.now()})}).catch(()=>{});

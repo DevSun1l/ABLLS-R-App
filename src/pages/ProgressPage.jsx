@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ABLLS_DOMAINS } from '../data/ablls';
 import { computeOverallMastery, computeDomainScore, getTopStrengths, getTopWeaknesses, getPriorityDomains, getDiagnosisInsights } from '../utils/scoring';
 import StudentAvatar from '../components/StudentAvatar';
+import { supabase } from '../lib/supabase';
 
 const ProgressPage = () => {
   const { id } = useParams();
@@ -13,29 +14,17 @@ const ProgressPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const token = sessionStorage.getItem('ablls_token');
-        let foundStudent = { id, name: "Current Student" };
-        
-        if (token) {
-           const stuRes = await fetch(`/api/students/get?id=${id}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-           });
-           if (stuRes.ok) {
-              const stuData = await stuRes.json();
-              foundStudent = { ...foundStudent, ...stuData.student, name: stuData.student.name };
-           }
+        const [studentRes, assessmentRes] = await Promise.all([
+          supabase.from('students').select('*').eq('id', id).maybeSingle(),
+          supabase.from('assessments').select('*').eq('student_id', id).maybeSingle()
+        ]);
 
-           const res = await fetch(`/api/assessments/load?studentId=${id}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-           });
-           const result = await res.json();
-           if (result.assessment) {
-              foundStudent.domains = result.assessment.domain_data || {};
-           } else {
-              foundStudent.domains = {};
-           }
+        let foundStudent = studentRes.data || { id, name: "Current Student" };
+        
+        if (assessmentRes.data) {
+          foundStudent.domains = assessmentRes.data.domain_data || {};
         } else {
-           foundStudent.domains = {};
+          foundStudent.domains = {};
         }
 
         foundStudent.masteryPercent = computeOverallMastery(foundStudent);

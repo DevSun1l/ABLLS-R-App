@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { useSearch } from '../context/SearchContext';
 import StudentCard, { StudentAssessmentModal } from '../components/StudentCard';
 import { formatDateTime, formatRelativeTime } from '../utils/time';
+import { supabase } from '../lib/supabase';
+import { transformActivityLogs } from '../utils/activity';
 
 const DashboardPage = () => {
   const { user } = useAuth();
@@ -16,39 +18,62 @@ const DashboardPage = () => {
   const [assessmentForm, setAssessmentForm] = useState(null);
   const [savingAssessment, setSavingAssessment] = useState(false);
   const [, setTick] = useState(0);
+
+  const resolveCreatedBy = (candidateId) => {
+    const candidate = (candidateId || '').trim();
+    if (!candidate || candidate.startsWith('legacy_') || user?.is_session_fallback) {
+      return null;
+    }
+    return candidate;
+  };
+
+  const resolveActivityLogUserId = () => {
+    const candidate = (user?.id || '').trim();
+    if (candidate && !candidate.startsWith('legacy_') && !user?.is_session_fallback) {
+      return candidate;
+    }
+    const email = (user?.email || '').toLowerCase();
+    if (email === 'admin@cognifycareteam.com') return 'usr_admin';
+    if (email === 'mnm@cognifycareteam.com') return 'usr_specialist';
+    return user?.role === 'admin' ? 'usr_admin' : 'usr_specialist';
+  };
   
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const token = sessionStorage.getItem('ablls_token');
-        if (!token) return;
-        const [studentRes, activityRes] = await Promise.all([
-          fetch('/api/students/org', {
-            headers: { Authorization: `Bearer ${token}` }
-          }),
-          fetch('/api/activity/feed', {
-            headers: { Authorization: `Bearer ${token}` }
-          })
-        ]);
+  const fetchDashboardData = async () => {
+    try {
+      if (!user?.org_id) return;
+      
+      const [studentRes, activityRes] = await Promise.all([
+        supabase
+          .from('students')
+          .select('*')
+          .eq('org_id', user.org_id)
+          .order('name'),
+        supabase
+          .from('activity_logs')
+          .select('*')
+          .order('timestamp', { ascending: false })
+          .limit(20)
+      ]);
 
-        if (studentRes.ok) {
-          const data = await studentRes.json();
-          setStudents(data.students || []);
-        }
-
-        if (activityRes.ok) {
-          const data = await activityRes.json();
-          setActivityFeed(data.activity || []);
-        }
-      } catch (e) {
-         console.error("Failed to load clinical caseload", e);
-      } finally {
-         setLoading(false);
+      if (studentRes.data) {
+        setStudents(studentRes.data);
       }
-    };
 
+      if (activityRes.data) {
+        const studentsById = new Map(studentRes.data?.map(s => [s.id, s]) || []);
+        const transformed = transformActivityLogs(activityRes.data, studentsById);
+        setActivityFeed(transformed);
+      }
+    } catch (e) {
+       console.error("Failed to load clinical caseload", e);
+    } finally {
+       setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchDashboardData();
-    const poll = setInterval(fetchDashboardData, 5000);
+    const poll = setInterval(fetchDashboardData, 10000); // Poll every 10s instead of 5s for performance
     const clock = setInterval(() => setTick((value) => value + 1), 1000);
     return () => {
       clearInterval(poll);
@@ -69,36 +94,24 @@ const DashboardPage = () => {
   // Clinical Pulse Metrics
   const metrics = useMemo(() => {
      if (!students.length) return { avgMastery: 0, activeAssessments: 0, trend: 0 };
-     const active = students.filter(s => s.masteryPercent !== undefined).length;
-     const avg = Math.round(students.reduce((acc, s) => acc + (s.masteryPercent || 0), 0) / (active || 1));
+     const active = students.filter(s => s.mastery_percent !== undefined).length;
+     const avg = Math.round(students.reduce((acc, s) => acc + (s.mastery_percent || 0), 0) / (active || 1));
      return {
         avgMastery: avg,
-        activeAssessments: students.filter((s) => s.hasAssessment).length,
+        activeAssessments: students.filter((s) => s.has_assessment).length,
         trend: activityFeed.length
      };
   }, [students, activityFeed]);
-
-  const fetchStudentsOnly = async () => {
-    const token = sessionStorage.getItem('ablls_token');
-    if (!token) return;
-    const res = await fetch('/api/students/org', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setStudents(data.students || []);
-    }
-  };
 
   const handleStartAssessment = (student) => {
     setSelectedStudent(student);
     setAssessmentForm({
       id: student.id,
       name: student.name || '',
-      ageYears: student.ageYears || 0,
-      ageMonths: student.ageMonths || 0,
+      age_years: student.age_years || 0,
+      age_months: student.age_months || 0,
       assessor: [user?.first_name, user?.last_name].filter(Boolean).join(' '),
-      assessmentDate: new Date().toISOString().split('T')[0],
+      assessment_date: new Date().toISOString().split('T')[0],
       diagnoses: student.diagnoses || [],
       notes: student.notes || '',
     });
@@ -110,27 +123,32 @@ const DashboardPage = () => {
 
     setSavingAssessment(true);
     try {
-      const token = sessionStorage.getItem('ablls_token');
-      const res = await fetch('/api/students/save', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          id: selectedStudent.id,
-          ...assessmentForm,
-        }),
-      });
+      const studentPayload = {
+        id: selectedStudent.id,
+        name: assessmentForm.name,
+        age_years: assessmentForm.age_years,
+        age_months: assessmentForm.age_months,
+        diagnoses: assessmentForm.diagnoses,
+        notes: assessmentForm.notes,
+        created_by: resolveCreatedBy(selectedStudent.created_by || user.id),
+        org_id: selectedStudent.org_id || user.org_id,
+      };
 
-      if (res.ok) {
+      const { error } = await supabase
+        .from('students')
+        .upsert(studentPayload, { onConflict: 'id' });
+
+      if (!error) {
         setSelectedStudent(null);
         setAssessmentForm(null);
-        await fetchStudentsOnly();
+        await fetchDashboardData();
         navigate(`/assessment/${selectedStudent.id}`);
+      } else {
+        throw error;
       }
     } catch (e) {
       console.error('Failed to update student before assessment', e);
+      alert('Error updating student: ' + e.message);
     } finally {
       setSavingAssessment(false);
     }
@@ -140,21 +158,29 @@ const DashboardPage = () => {
     if (!window.confirm(`Delete ${student.name}? This will remove the student and any saved assessments.`)) return;
 
     try {
-      const token = sessionStorage.getItem('ablls_token');
-      const res = await fetch('/api/students/delete', {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ studentId: student.id }),
-      });
+      const { error } = await supabase
+        .from('students')
+        .delete()
+        .eq('id', student.id);
 
-      if (res.ok) {
-        await fetchStudentsOnly();
+      if (!error) {
+        await fetchDashboardData();
+        // Log deletion
+        try {
+          await supabase.from('activity_logs').insert({
+            user_id: resolveActivityLogUserId(),
+            action: 'student_deleted',
+            details: { student_name: student.name }
+          });
+        } catch {
+          // Non-blocking telemetry insert.
+        }
+      } else {
+        throw error;
       }
     } catch (e) {
       console.error('Failed to delete student', e);
+      alert('Error deleting student: ' + e.message);
     }
   };
 

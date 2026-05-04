@@ -3,10 +3,19 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ABLLS_DOMAINS } from '../data/ablls';
 import DomainProgressBar from '../components/DomainProgressBar';
 import ScoreButton from '../components/ScoreButton';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../hooks/useAuth';
+
+const DEBUG_ENDPOINT = 'http://127.0.0.1:7745/ingest/2093a418-4f5e-4810-841e-d97f9aa410f6';
+const LEGACY_ASSESSOR_BY_EMAIL = {
+  'admin@cognifycareteam.com': 'usr_admin',
+  'mnm@cognifycareteam.com': 'usr_specialist',
+};
 
 const AssessmentPage = () => {
   const { id } = useParams(); // student id
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [student, setStudent] = useState(null);
   const [assessmentData, setAssessmentData] = useState({});
   const [domainIndex, setDomainIndex] = useState(0);
@@ -19,27 +28,21 @@ const AssessmentPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const token = sessionStorage.getItem('ablls_token');
-        let foundStudent = { id, name: "Current Student" };
-        
-        if (token) {
-           const stuRes = await fetch(`/api/students/get?id=${id}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-           });
-           if (stuRes.ok) {
-              const stuData = await stuRes.json();
-              foundStudent = { ...foundStudent, ...stuData.student, name: stuData.student.name };
-           }
-           
-           const res = await fetch(`/api/assessments/load?studentId=${id}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-           });
-           const result = await res.json();
-           if (result.assessment) {
-              setAssessmentData(result.assessment.domain_data || {});
-           }
+        const [studentRes, assessmentRes] = await Promise.all([
+          supabase.from('students').select('*').eq('id', id).maybeSingle(),
+          supabase.from('assessments').select('*').eq('student_id', id).maybeSingle()
+        ]);
+
+        if (studentRes.data) {
+          setStudent(studentRes.data);
         }
-        setStudent(foundStudent);
+        
+        if (assessmentRes.data) {
+          setAssessmentData(assessmentRes.data.domain_data || {});
+        } else {
+          // If no assessment exists, we'll create one later on first save
+          setAssessmentData({});
+        }
       } catch(e) {
          console.error("Failed to load assessment:", e);
       } finally {
@@ -61,18 +64,64 @@ const AssessmentPage = () => {
   const currentSkills = currentDomain.skills;
   const currentDomainData = assessmentData[currentDomain.id] || { skills: {} };
 
+  const resolveAssessorId = () => {
+    if (user?.id && !user.id.startsWith('legacy_') && !user?.is_session_fallback) {
+      return user.id;
+    }
+    const emailKey = (user?.email || '').toLowerCase();
+    if (LEGACY_ASSESSOR_BY_EMAIL[emailKey]) {
+      return LEGACY_ASSESSOR_BY_EMAIL[emailKey];
+    }
+    return user?.role === 'admin' ? 'usr_admin' : 'usr_specialist';
+  };
+
   const autoSaveToDB = async (updatedDomainData) => {
     setAssessmentData(updatedDomainData);
-    const token = sessionStorage.getItem('ablls_token');
-    if (!token) return;
-    fetch(`/api/assessments/save`, {
-       method: 'POST',
-       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-       body: JSON.stringify({
-          studentId: id,
-          domainsData: updatedDomainData
-       })
-    }).catch(e => console.error("Auto-save failed", e));
+    try {
+      const { data: existingAssessment, error: existingError } = await supabase
+        .from('assessments')
+        .select('id, student_id')
+        .eq('student_id', id)
+        .maybeSingle();
+
+      if (existingError) throw existingError;
+
+      const payload = {
+        student_id: id,
+        domain_data: updatedDomainData,
+      };
+
+      // #region agent log
+      fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'post-fix',hypothesisId:'H6',location:'src/pages/AssessmentPage.jsx:79',message:'assessment autosave mode',data:{hasExisting:Boolean(existingAssessment?.id),hasUserId:Boolean(user?.id)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+
+      let saveError = null;
+      if (existingAssessment?.id) {
+        const { error } = await supabase
+          .from('assessments')
+          .update(payload)
+          .eq('id', existingAssessment.id);
+        saveError = error;
+      } else {
+        const { error } = await supabase
+          .from('assessments')
+          .insert({
+            id: `asm_${crypto.randomUUID().split('-')[0]}`,
+            assessor_id: resolveAssessorId(),
+            date: new Date().toISOString().split('T')[0],
+            ...payload,
+          });
+        saveError = error;
+      }
+
+      // #region agent log
+      fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'post-fix',hypothesisId:'H6',location:'src/pages/AssessmentPage.jsx:102',message:'assessment autosave result',data:{ok:!saveError,errorCode:saveError?.code||null,errorMessage:saveError?.message||null},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+
+      if (saveError) throw saveError;
+    } catch (e) {
+      console.error("Auto-save failed", e);
+    }
   };
 
   const handleScore = (skillCode, value, isGateway) => {

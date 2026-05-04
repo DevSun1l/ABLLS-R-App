@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../hooks/useAuth';
 
 const FeedbackModal = ({ onClose }) => {
+  const { user } = useAuth();
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [wordRating, setWordRating] = useState('');
@@ -21,21 +24,26 @@ const FeedbackModal = ({ onClose }) => {
     if (!rating) return;
     setProcessing(true);
     try {
-      const token = sessionStorage.getItem('ablls_token');
-      const res = await fetch('/api/feedback/submit', {
-        method: 'POST',
-        headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ rating, word_rating: wordRating, mood, description })
-      });
-      if (res.ok) {
+      const { error } = await supabase
+        .from('feedback')
+        .insert({
+          user_id: user?.id,
+          rating,
+          word_rating: wordRating,
+          mood,
+          description,
+          created_at: new Date().toISOString()
+        });
+
+      if (!error) {
         setSuccess(true);
         setTimeout(onClose, 2000);
+      } else {
+        throw error;
       }
     } catch (e) {
       console.error(e);
+      alert('Error submitting feedback: ' + e.message);
     } finally {
       setProcessing(false);
     }

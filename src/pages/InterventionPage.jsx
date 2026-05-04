@@ -10,6 +10,89 @@ import { exportInterventionPlanPdf } from '../utils/pdfExport';
 import { supabase } from '../lib/supabase';
 
 const DEBUG_ENDPOINT = 'http://127.0.0.1:7745/ingest/2093a418-4f5e-4810-841e-d97f9aa410f6';
+const GOAL_ENDPOINTS = ['/api/generate', '/.netlify/functions/generate'];
+const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+
+const buildFallbackGoals = (student, selectedGoals) =>
+  selectedGoals.map((goal) => ({
+    smartGoal: `Within 12 weeks, ${student.name} will improve ${goal.title.toLowerCase()} to at least 80% success across 3 consecutive sessions, measured by therapist data collection.`,
+    strategy: 'ABA Therapy',
+    activity: `Structured practice routine for ${goal.title}.`,
+    serviceType: 'Individual',
+    benefitStatement: (goal.benefitTemplate || 'This goal supports [child\'s name] in [skill area].')
+      .replace("[child's name]", student.name || 'the student')
+      .replace('[skill area]', goal.domain || 'core skills')
+      .replace('[target ability]', goal.title || 'target ability')
+      .replace('[ABLLS-R domain]', goal.domain || 'ABLLS-R domain')
+      .replace('[diagnosis]', (student.diagnoses && student.diagnoses[0]) || 'developmental needs'),
+  }));
+
+const getStudentFromSessionStorage = (studentId) => {
+  try {
+    const raw = sessionStorage.getItem('ablls_students');
+    if (!raw) return null;
+    const list = JSON.parse(raw);
+    if (!Array.isArray(list)) return null;
+    return list.find((entry) => entry.id === studentId) || null;
+  } catch {
+    return null;
+  }
+};
+
+const generateGoalsWithGeminiClient = async ({ student, selectedGoals, weakDomains }) => {
+  const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!geminiKey) return null;
+
+  const systemPrompt = `You are an expert special education intervention planner.
+Return ONLY a valid JSON array of 5 objects.
+Each object: { "smartGoal": "", "strategy": "", "activity": "", "serviceType": "", "benefitStatement": "" }`;
+
+  const userPrompt = `Child: ${student.name}, Age: ${student.ageYears || 0} years ${student.ageMonths || 0} months, Diagnoses: ${(student.diagnoses || []).join(', ')}
+Weak ABLLS-R Domains: ${JSON.stringify(weakDomains)}
+Goal Templates:
+${selectedGoals.map((g, i) => `${i + 1}. ${g.title}\nBenefit Template: ${g.benefitTemplate}`).join('\n\n')}`;
+
+  let lastError = null;
+  for (const model of GEMINI_MODELS) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          generationConfig: { responseMimeType: 'application/json' },
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        lastError = new Error(err?.error?.message || `Gemini client call failed: HTTP ${response.status}`);
+        if (response.status === 503 && attempt < 3) {
+          continue;
+        }
+        break;
+      }
+
+      const data = await response.json();
+      const textContent = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+      if (!textContent) {
+        lastError = new Error(`Gemini response empty for model ${model}.`);
+        continue;
+      }
+
+      try {
+        return JSON.parse(textContent);
+      } catch {
+        const match = textContent.match(/\[[\s\S]*\]/);
+        if (match) return JSON.parse(match[0]);
+        lastError = new Error(`Gemini returned non-JSON response for model ${model}.`);
+      }
+    }
+  }
+
+  throw lastError || new Error('Gemini generation unavailable.');
+};
 
 const InterventionPage = () => {
   const { id } = useParams();
@@ -30,37 +113,93 @@ const InterventionPage = () => {
       fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'pre-fix',hypothesisId:'H5',location:'src/pages/InterventionPage.jsx:31',message:'goal generation request prepared',data:{studentId:id,selectedGoalsCount:selectedGoals.length,weakDomainsCount:weakDomains.length},timestamp:Date.now()})}).catch(()=>{});
       // #endregion
 
-      const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          student: { ...targetStudent, weakDomains },
-          selectedGoals
-        })
-      });
+      let generatedSmartGoals = null;
+      let lastError = null;
 
-      if (!response.ok) {
+      for (const endpoint of GOAL_ENDPOINTS) {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            student: { ...targetStudent, weakDomains },
+            selectedGoals,
+          }),
+        });
+
+        if (response.ok) {
+          generatedSmartGoals = await response.json();
+          break;
+        }
+
         const errData = await response.json().catch(() => ({}));
+        lastError = errData.error || `HTTP ${response.status}`;
         // #region agent log
-        fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'pre-fix',hypothesisId:'H5',location:'src/pages/InterventionPage.jsx:45',message:'goal generation request failed',data:{status:response.status,error:errData.error||'unknown'},timestamp:Date.now()})}).catch(()=>{});
+        fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'post-fix',hypothesisId:'H5',location:'src/pages/InterventionPage.jsx:63',message:'goal generation endpoint failed',data:{endpoint,status:response.status,error:lastError},timestamp:Date.now()})}).catch(()=>{});
         // #endregion
-        throw new Error(errData.error || 'Goal generation failed.');
       }
 
-      const generatedSmartGoals = await response.json();
+      if (!Array.isArray(generatedSmartGoals) || generatedSmartGoals.length === 0) {
+        try {
+          const geminiGoals = await generateGoalsWithGeminiClient({
+            student: targetStudent,
+            selectedGoals,
+            weakDomains,
+          });
+          if (Array.isArray(geminiGoals) && geminiGoals.length > 0) {
+            generatedSmartGoals = geminiGoals;
+            // #region agent log
+            fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'post-fix',hypothesisId:'H5',location:'src/pages/InterventionPage.jsx:118',message:'gemini client-side generation succeeded',data:{goalsReturned:geminiGoals.length},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+          }
+        } catch (geminiClientError) {
+          // #region agent log
+          fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'post-fix',hypothesisId:'H5',location:'src/pages/InterventionPage.jsx:124',message:'gemini client-side generation failed',data:{error:geminiClientError?.message||'unknown'},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
+        }
+      }
+
+      if (!Array.isArray(generatedSmartGoals) || generatedSmartGoals.length === 0) {
+        generatedSmartGoals = buildFallbackGoals(targetStudent, selectedGoals);
+        // #region agent log
+        fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'post-fix',hypothesisId:'H5',location:'src/pages/InterventionPage.jsx:132',message:'using local fallback goals',data:{reason:lastError||'no_endpoint_success',goalsReturned:generatedSmartGoals.length},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+      }
+
       // #region agent log
-      fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'pre-fix',hypothesisId:'H5',location:'src/pages/InterventionPage.jsx:50',message:'goal generation request succeeded',data:{goalsReturned:Array.isArray(generatedSmartGoals)?generatedSmartGoals.length:0},timestamp:Date.now()})}).catch(()=>{});
+      fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'post-fix',hypothesisId:'H5',location:'src/pages/InterventionPage.jsx:77',message:'goal generation result ready',data:{goalsReturned:Array.isArray(generatedSmartGoals)?generatedSmartGoals.length:0},timestamp:Date.now()})}).catch(()=>{});
       // #endregion
       setGoals(generatedSmartGoals);
 
       // Save to Supabase
-      const { error: saveError } = await supabase
+      const smartGoalsPayload = JSON.stringify(generatedSmartGoals);
+      const { data: existingAssessment, error: fetchAssessmentError } = await supabase
         .from('assessments')
-        .update({
-          smart_goals: generatedSmartGoals,
-          updated_at: new Date().toISOString()
-        })
-        .eq('student_id', id);
+        .select('id')
+        .eq('student_id', id)
+        .maybeSingle();
+
+      if (fetchAssessmentError) throw fetchAssessmentError;
+
+      let saveError = null;
+      if (existingAssessment?.id) {
+        const { error } = await supabase
+          .from('assessments')
+          .update({ smart_goals: smartGoalsPayload })
+          .eq('id', existingAssessment.id);
+        saveError = error;
+      } else {
+        const { error } = await supabase
+          .from('assessments')
+          .insert({
+            id: `asm_${crypto.randomUUID().split('-')[0]}`,
+            student_id: id,
+            assessor_id: user?.role === 'admin' ? 'usr_admin' : 'usr_specialist',
+            date: new Date().toISOString().split('T')[0],
+            domain_data: {},
+            smart_goals: smartGoalsPayload,
+          });
+        saveError = error;
+      }
       
       if (saveError) console.error("Failed to save goals:", saveError);
 
@@ -76,11 +215,16 @@ const InterventionPage = () => {
     const fetchData = async () => {
       try {
         const [studentRes, assessmentRes] = await Promise.all([
-          supabase.from('students').select('*').eq('id', id).single(),
-          supabase.from('assessments').select('*').eq('student_id', id).single()
+          supabase.from('students').select('*').eq('id', id).maybeSingle(),
+          supabase.from('assessments').select('*').eq('student_id', id).maybeSingle()
         ]);
 
-        let foundStudent = studentRes.data || { id, name: 'Current Student' };
+        let foundStudent = studentRes.data || getStudentFromSessionStorage(id);
+        if (!foundStudent) {
+          setError('Unable to load student profile for intervention generation.');
+          setLoading(false);
+          return;
+        }
         
         if (assessmentRes.data) {
           foundStudent.domains = assessmentRes.data.domain_data || {};
@@ -155,7 +299,7 @@ const InterventionPage = () => {
             onClick={handleRegenerate}
             className="bg-white border border-gray-300 text-textPrimary font-semibold py-2.5 px-5 rounded-lg hover:bg-gray-50 transition-colors"
           >
-            Regenerate goals
+            Generate goals
           </button>
           <button
             onClick={handleExportPDF}

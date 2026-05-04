@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import SurveyForm from '../components/SurveyForm';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
 
 const SurveyPage = () => {
   const [submitted, setSubmitted] = useState(false);
@@ -10,24 +11,22 @@ const SurveyPage = () => {
 
   const handleSurveySubmit = async (data) => {
     try {
-      const token = sessionStorage.getItem('ablls_token');
-      const res = await fetch('/api/feedback/save', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(data)
-      });
-      if (res.ok) {
+      const { error } = await supabase
+        .from('feedback')
+        .insert({
+          ...data,
+          user_id: user.id,
+          created_at: new Date().toISOString()
+        });
+
+      if (!error) {
         setSubmitted(true);
       } else {
-        const err = await res.json();
-        alert(err.error || 'Failed to submit feedback');
+        throw error;
       }
     } catch (e) {
       console.error(e);
-      alert('Network error submitting feedback');
+      alert('Error submitting feedback: ' + e.message);
     }
   };
 

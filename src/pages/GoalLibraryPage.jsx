@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { GOAL_LIBRARY } from '../data/goalLibrary';
 import GoalLibraryItem from '../components/GoalLibraryItem';
 import AdminLayout from '../components/AdminLayout';
@@ -15,10 +15,6 @@ const GoalLibraryPage = () => {
      title: '', domain: 'Communication / Language', diagnoses: [], skillLevel: 'Basic'
   });
 
-  if (user?.role !== 'admin') {
-    return <Navigate to="/dashboard" replace />;
-  }
-
   useEffect(() => {
     const rawData = sessionStorage.getItem('ablls_goals');
     if (rawData) {
@@ -28,6 +24,10 @@ const GoalLibraryPage = () => {
       sessionStorage.setItem('ablls_goals', JSON.stringify(GOAL_LIBRARY));
     }
   }, []);
+
+  if (user?.role !== 'admin') {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const saveGoals = (newGoals) => {
     setGoals(newGoals);

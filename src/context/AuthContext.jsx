@@ -55,11 +55,28 @@ const buildProfileFromLegacyUser = (legacyUser) => {
   };
 };
 
+const resolveActivityLogUserId = (profile) => {
+  const candidateId = (profile?.id || '').trim();
+  if (candidateId && !candidateId.startsWith('legacy_') && !profile?.is_session_fallback) {
+    return candidateId;
+  }
+  const email = (profile?.email || '').toLowerCase();
+  if (email === 'admin@cognifycareteam.com') return 'usr_admin';
+  if (email === 'mnm@cognifycareteam.com') return 'usr_specialist';
+  if (profile?.role === 'admin') return 'usr_admin';
+  return 'usr_specialist';
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const skipUsersTableQueriesRef = React.useRef(false);
+  const usersRecursionLoggedRef = React.useRef(false);
 
   const fetchUserProfile = async (userId) => {
+    if (skipUsersTableQueriesRef.current) {
+      return null;
+    }
     try {
       const { data, error } = await supabase
         .from('users')
@@ -68,25 +85,32 @@ export const AuthProvider = ({ children }) => {
         .single();
 
       if (error) {
-        console.error('AuthContext: fetchUserProfile Supabase error -', error);
+        if (isUsersPolicyRecursionError(error)) {
+          skipUsersTableQueriesRef.current = true;
+          if (!usersRecursionLoggedRef.current) {
+            console.error('Users policy recursion detected during profile fetch by ID. Disabling users-table profile queries for this session.');
+            usersRecursionLoggedRef.current = true;
+          }
+          return null;
+        }
         if (error.code === 'PGRST116') {
           console.warn('User profile not found in public.users table for ID:', userId);
           return null;
         }
+        console.error('AuthContext: fetchUserProfile Supabase error -', error);
         throw error;
       }
       return data;
     } catch (e) {
-      if (isUsersPolicyRecursionError(e)) {
-        console.error('Users policy recursion detected during profile fetch by ID.');
-        return null;
-      }
       console.error('CRITICAL: Error fetching user profile:', e);
       return null;
     }
   };
 
   const fetchUserProfileByEmail = async (email) => {
+    if (skipUsersTableQueriesRef.current) {
+      return null;
+    }
     try {
       const { data, error } = await supabase
         .from('users')
@@ -98,7 +122,11 @@ export const AuthProvider = ({ children }) => {
       return data;
     } catch (e) {
       if (isUsersPolicyRecursionError(e)) {
-        console.error('Users policy recursion detected during email fallback. Skipping email profile lookup.');
+        skipUsersTableQueriesRef.current = true;
+        if (!usersRecursionLoggedRef.current) {
+          console.error('Users policy recursion detected during email fallback. Disabling users-table profile queries for this session.');
+          usersRecursionLoggedRef.current = true;
+        }
         return null;
       }
       console.error('Error fetching user profile by email:', e);
@@ -108,11 +136,9 @@ export const AuthProvider = ({ children }) => {
 
   const persistUser = (profile, isLegacy = false) => {
     setUser(profile);
-    if (isLegacy && profile?.id) {
-      localStorage.setItem(LEGACY_SESSION_KEY, profile.id);
-    } else if (!isLegacy || !profile?.id) {
-      localStorage.removeItem(LEGACY_SESSION_KEY);
-    }
+    // Never auto-restore legacy sessions on app launch.
+    // This guarantees startup opens at login/signup unless Supabase has an active auth session.
+    localStorage.removeItem(LEGACY_SESSION_KEY);
   };
 
   const refreshUser = async () => {
@@ -127,17 +153,6 @@ export const AuthProvider = ({ children }) => {
       if (session?.user) {
         const profile = await fetchUserProfile(session.user.id) || buildProfileFromSessionUser(session.user);
         persistUser(profile);
-        return profile;
-      }
-
-      const legacyUserId = localStorage.getItem(LEGACY_SESSION_KEY);
-      if (legacyUserId) {
-        const profile = await fetchUserProfile(legacyUserId);
-        if (profile?.status === 'blocked') {
-          persistUser(null);
-          return null;
-        }
-        persistUser(profile, true);
         return profile;
       }
 
@@ -164,15 +179,8 @@ export const AuthProvider = ({ children }) => {
           const profile = await fetchUserProfile(session.user.id) || buildProfileFromSessionUser(session.user);
           if (mounted) persistUser(profile);
         } else {
-          const legacyUserId = localStorage.getItem(LEGACY_SESSION_KEY);
-          if (legacyUserId) {
-            console.log('AuthContext: Initializing with legacy session');
-            const profile = await fetchUserProfile(legacyUserId);
-            if (mounted) persistUser(profile, true);
-          } else {
-            console.log('AuthContext: No session found');
-            if (mounted) setUser(null);
-          }
+          console.log('AuthContext: No session found');
+          if (mounted) setUser(null);
         }
       } catch (e) {
         console.error('AuthContext: Initialization error', e);
@@ -231,11 +239,15 @@ export const AuthProvider = ({ children }) => {
       }
 
       persistUser(profile, true);
-      await supabase.from('activity_logs').insert({
-        user_id: profile.id,
-        action: 'login',
-        details: { authProvider: 'legacy-bridge' },
-      });
+      try {
+        await supabase.from('activity_logs').insert({
+          user_id: resolveActivityLogUserId(profile),
+          action: 'login',
+          details: { authProvider: 'legacy-bridge' },
+        });
+      } catch {
+        // Non-blocking telemetry insert.
+      }
       return profile;
     }
 
@@ -268,11 +280,15 @@ export const AuthProvider = ({ children }) => {
     }
 
     persistUser(profile);
-    await supabase.from('activity_logs').insert({
-      user_id: profile.id,
-      action: 'login',
-      details: { authProvider: 'supabase' },
-    });
+    try {
+      await supabase.from('activity_logs').insert({
+        user_id: resolveActivityLogUserId(profile),
+        action: 'login',
+        details: { authProvider: 'supabase' },
+      });
+    } catch {
+      // Non-blocking telemetry insert.
+    }
     return profile;
   };
 
@@ -328,11 +344,15 @@ export const AuthProvider = ({ children }) => {
     const profile = profilePayload;
 
     persistUser(profile);
-    await supabase.from('activity_logs').insert({
-      user_id: profile.id,
-      action: 'login',
-      details: { authProvider: 'supabase-signup' },
-    });
+    try {
+      await supabase.from('activity_logs').insert({
+        user_id: resolveActivityLogUserId(profile),
+        action: 'login',
+        details: { authProvider: 'supabase-signup' },
+      });
+    } catch {
+      // Non-blocking telemetry insert.
+    }
     return profile;
   };
 

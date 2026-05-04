@@ -5,12 +5,12 @@ import App from './App.jsx';
 import './index.css';
 import { AuthProvider } from './context/AuthContext';
 
+console.log('Main.jsx: Mounting application...');
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <AuthProvider>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </AuthProvider>
-  </React.StrictMode>
+  <AuthProvider>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </AuthProvider>
 );
+console.log('Main.jsx: Render called.');

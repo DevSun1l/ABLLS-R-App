@@ -66,7 +66,7 @@ const StudentAvatar = ({ seed, mood = 'stable', size = 'md' }) => {
       <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white shadow-sm ${mood === 'active' ? 'bg-success' : mood === 'stable' ? 'bg-primary' : 'bg-error'} animate-ping opacity-75`}></div>
       <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white shadow-sm ${mood === 'active' ? 'bg-success' : mood === 'stable' ? 'bg-primary' : 'bg-error'}`}></div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes breathing {
           0%, 100% { transform: scale(1) translateY(0); }
           50% { transform: scale(1.05) translateY(-2px); }

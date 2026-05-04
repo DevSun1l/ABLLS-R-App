@@ -1,10 +1,10 @@
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+export const handler = async (event, context) => {
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
 
   try {
-    const { student, selectedGoals } = req.body;
+    const { student, selectedGoals } = JSON.parse(event.body);
 
     const systemPrompt = `You are an expert special education intervention planner with deep knowledge of ABA therapy, speech-language therapy, and occupational therapy.
 
@@ -44,7 +44,7 @@ Generate 5 personalised SMART goals.`;
         serviceType: "Individual",
         benefitStatement: g.benefitTemplate.replace('[child\'s name]', student.name).replace('[skill area]', g.domain).replace('[target ability]', 'this skill').replace('[ABLLS-R domain]', g.domain).replace('[diagnosis]', student.diagnoses?.[0] || 'delay')
       }));
-      return res.status(200).json(mockData);
+      return { statusCode: 200, body: JSON.stringify(mockData) };
     }
 
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
@@ -69,11 +69,11 @@ Generate 5 personalised SMART goals.`;
     const data = await response.json();
     if (!response.ok) {
       console.error("API Error Response:", data);
-      return res.status(500).json({ error: data.error?.message || "Gemini API HTTP Error" });
+      return { statusCode: 500, body: JSON.stringify({ error: data.error?.message || "Gemini API HTTP Error" }) };
     }
 
     if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-      return res.status(500).json({ error: "Gemini returned no content. Safety block or invalid response." });
+      return { statusCode: 500, body: JSON.stringify({ error: "Gemini returned no content. Safety block or invalid response." }) };
     }
 
     const textContent = data.candidates[0].content.parts[0].text.trim();
@@ -86,9 +86,9 @@ Generate 5 personalised SMART goals.`;
       else throw new Error("Could not parse JSON array from Gemini: " + textContent.substring(0, 100));
     }
 
-    return res.status(200).json(jsonArray);
+    return { statusCode: 200, body: JSON.stringify(jsonArray) };
   } catch (error) {
     console.error("AI generation error:", error);
-    return res.status(500).json({ error: error.message || 'AI generation threw an exception' });
+    return { statusCode: 500, body: JSON.stringify({ error: error.message || 'AI generation threw an exception' }) };
   }
-}
+};

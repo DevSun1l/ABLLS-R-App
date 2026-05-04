@@ -1,5 +1,6 @@
 import { getTopWeaknesses } from './scoring';
 import { ABLLS_DOMAINS } from '../data/ablls';
+import { GOAL_LIBRARY } from '../data/goalLibrary';
 
 export const getMatchingGoals = (student) => {
   // Read goals from session storage or use default library
@@ -14,10 +15,8 @@ export const getMatchingGoals = (student) => {
   }
   
   if(goalLibrary.length === 0) {
-      // In case session storage isn't populated early enough
-      // Not ideal for pure synchronous function if we really need it,
-      // but in the app it's better to manage state
-       console.warn("Goals not found in session storage.");
+       goalLibrary = GOAL_LIBRARY;
+       console.warn("Goals not found in session storage. Falling back to bundled goal library.");
   }
   
   const weakDomains = getTopWeaknesses(student, ABLLS_DOMAINS, 5);

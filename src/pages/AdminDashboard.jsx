@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { useNavigate, useLocation } from 'react-router-dom';
 import AdminLayout from '../components/AdminLayout';
 import { formatRelativeTime, parseAppDate } from '../utils/time';
+import { supabase } from '../lib/supabase';
 
 const AdminDashboard = () => {
     const { user } = useAuth();
@@ -29,28 +30,32 @@ const AdminDashboard = () => {
 
     const fetchAdminData = useCallback(async () => {
         try {
-            const token = sessionStorage.getItem('ablls_token');
-            const [dataRes, feedbackRes] = await Promise.all([
-                fetch('/api/admin/data', { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch('/api/admin/feedback', { headers: { 'Authorization': `Bearer ${token}` } })
+            const [usersRes, studentsRes, assessmentsRes, logsRes, feedbackRes] = await Promise.all([
+                supabase.from('users').select('*'),
+                supabase.from('students').select('*'),
+                supabase.from('assessments').select('*'),
+                supabase.from('activity_logs').select('*').order('timestamp', { ascending: false }).limit(50),
+                supabase.from('feedback').select('*').order('created_at', { ascending: false })
             ]);
 
-            let newData = { 
-                users: [], 
-                students: [], 
-                assessments: [], 
-                loginLogs: [],
-                feedback: { entries: [], insights: { avgRating: 0, moodDistribution: { happy: 0, neutral: 0, sad: 0 }, totalCount: 0 } }
-            };
-            if (dataRes.ok) {
-                const result = await dataRes.json();
-                newData = { ...newData, ...result };
-            }
-            if (feedbackRes.ok) {
-                const fbResult = await feedbackRes.json();
-                newData = { ...newData, feedback: fbResult };
-            }
-            setData(newData);
+            const feedbackEntries = feedbackRes.data || [];
+            const totalCount = feedbackEntries.length;
+            const avgRating = totalCount > 0 ? feedbackEntries.reduce((acc, f) => acc + f.rating, 0) / totalCount : 0;
+            const moodDistribution = feedbackEntries.reduce((acc, f) => {
+                acc[f.mood] = (acc[f.mood] || 0) + 1;
+                return acc;
+            }, { happy: 0, neutral: 0, sad: 0 });
+
+            setData({
+                users: usersRes.data || [],
+                students: studentsRes.data || [],
+                assessments: assessmentsRes.data || [],
+                loginLogs: logsRes.data || [],
+                feedback: {
+                    entries: feedbackEntries,
+                    insights: { avgRating, moodDistribution, totalCount }
+                }
+            });
         } catch (e) {
             console.error("Admin data fetch error:", e);
         } finally {
@@ -66,8 +71,8 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         fetchAdminData();
-        const interval = setInterval(fetchAdminData, 5000);
-        const tickInterval = setInterval(() => setTick(t => t + 1), 1000); // Live updates every second
+        const interval = setInterval(fetchAdminData, 10000);
+        const tickInterval = setInterval(() => setTick(t => t + 1), 1000);
         return () => {
             clearInterval(interval);
             clearInterval(tickInterval);
@@ -76,48 +81,19 @@ const AdminDashboard = () => {
 
     const handleInvite = async (e) => {
         e.preventDefault();
-        setProcessing(true);
-        try {
-            const token = sessionStorage.getItem('ablls_token');
-            const res = await fetch('/api/admin/invite', {
-                method: 'POST',
-                headers: { 
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(inviteForm)
-            });
-            if (res.ok) {
-                const result = await res.json();
-                setShowInviteModal(false);
-                setInviteForm({ userId: '' });
-                fetchAdminData();
-                alert(`Admin access granted.\nUsername: ${result.username}\nPassword: ${result.password}`);
-            } else {
-                const err = await res.json();
-                alert(err.error || 'Failed to invite user');
-            }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setProcessing(false);
-        }
+        alert('Promotion via direct Supabase client requires Administrative Edge Functions. This feature is being refactored.');
+        setShowInviteModal(false);
     };
 
     const handleRemoveStudent = async (studentId) => {
         if (!window.confirm('Are you sure you want to remove this student? All assessment data will be permanently purged.')) return;
         setProcessing(true);
         try {
-            const token = sessionStorage.getItem('ablls_token');
-            const res = await fetch('/api/students/delete', {
-                method: 'DELETE',
-                headers: { 
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ studentId })
-            });
-            if (res.ok) fetchAdminData();
+            const { error } = await supabase
+                .from('students')
+                .delete()
+                .eq('id', studentId);
+            if (!error) fetchAdminData();
         } catch (e) {
             console.error(e);
         } finally {
@@ -201,17 +177,12 @@ const AdminDashboard = () => {
         
         setProcessing(true);
         try {
-            const token = sessionStorage.getItem('ablls_token');
-            const res = await fetch('/api/admin/update-user', {
-                method: 'PATCH',
-                headers: { 
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ userId: userToUpdate.id, status: newStatus })
-            });
-            if (res.ok) {
-                // Update local state for immediate feedback if possible, or just refresh
+            const { error } = await supabase
+                .from('users')
+                .update({ status: newStatus })
+                .eq('id', userToUpdate.id);
+            
+            if (!error) {
                 fetchAdminData();
                 if (selectedUser?.id === userToUpdate.id) {
                     setSelectedUser({ ...userToUpdate, status: newStatus });
@@ -376,8 +347,8 @@ const AdminDashboard = () => {
                                             <div className="flex">
                                                 {/* Y-Axis */}
                                                 <div className="flex flex-col justify-between items-end pr-3 py-1" style={{ height: barHeight }}>
-                                                    {yTicks.slice().reverse().map(tick => (
-                                                        <span key={tick} className="text-[10px] font-bold text-on-surface-variant/50 tabular-nums leading-none">{tick}</span>
+                                                    {yTicks.slice().reverse().map((tick, index) => (
+                                                        <span key={`y-axis-${index}-${tick}`} className="text-[10px] font-bold text-on-surface-variant/50 tabular-nums leading-none">{tick}</span>
                                                     ))}
                                                 </div>
 
@@ -385,9 +356,9 @@ const AdminDashboard = () => {
                                                 <div className="flex-1">
                                                     <div className="relative border-l border-b border-outline-variant/20" style={{ height: barHeight }}>
                                                         {/* Horizontal grid lines */}
-                                                        {yTicks.map(tick => (
+                                                        {yTicks.map((tick, index) => (
                                                             <div 
-                                                                key={tick}
+                                                                key={`grid-line-${index}-${tick}`}
                                                                 className="absolute left-0 right-0 border-t border-dashed border-outline-variant/10"
                                                                 style={{ bottom: `${(tick / yMax) * 100}%` }}
                                                             />
@@ -586,69 +557,6 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
-                {activeTab === 'feedback' && (
-                    <div className="space-y-6">
-                        <div className="mb-8 border-b border-outline-variant/10 pb-8 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                            <div>
-                                <h2 className="text-4xl font-black font-headline text-on-surface tracking-tight">Feedback Portal</h2>
-                                <p className="text-on-surface-variant mt-2 font-medium">Aggregated qualitative assessments from system operators.</p>
-                            </div>
-                            <div className="flex gap-4">
-                                <div className="bg-surface-container-low px-6 py-3 rounded-2xl flex items-center gap-4 shadow-sm border border-outline-variant/10">
-                                    <span className="material-symbols-outlined text-primary text-3xl">star</span>
-                                    <div>
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Global Efficacy</p>
-                                        <p className="text-2xl font-black tracking-tighter text-on-surface">{data.feedback.insights.avgRating.toFixed(1)} <span className="text-sm">/ 5</span></p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {data.feedback.entries.length === 0 ? (
-                            <div className="bg-surface-container-lowest h-64 rounded-3xl shadow-sm border border-outline-variant/20 flex items-center justify-center text-on-surface-variant/40 font-bold uppercase tracking-widest text-center">
-                                No Feedback Logged In Current Protocol
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {data.feedback.entries.map(fb => {
-                                    const u = (data.users || []).find(usr => usr.id === fb.user_id) || { first_name: 'Unknown', last_name: 'Node' };
-                                    const moodEmoji = fb.mood === 'happy' ? '😊' : fb.mood === 'sad' ? '😞' : '😐';
-                                    
-                                    return (
-                                        <div key={fb.id} className="bg-surface-container-lowest p-6 rounded-3xl border border-outline-variant/10 shadow-sm flex flex-col hover:shadow-md transition-shadow relative overflow-hidden group">
-                                            <div className="flex justify-between items-start mb-6 z-10 relative">
-                                                <div className="flex gap-1 text-[#ffc107]">
-                                                    {[...Array(5)].map((_, i) => (
-                                                        <span key={i} className="material-symbols-outlined text-lg" style={{ fontVariationSettings: `'FILL' ${i < fb.rating ? 1 : 0}` }}>star</span>
-                                                    ))}
-                                                </div>
-                                                <span className="text-3xl grayscale opacity-60 group-hover:grayscale-0 group-hover:opacity-100 transition-all">{moodEmoji}</span>
-                                            </div>
-
-                                            <div className="z-10 relative flex-1">
-                                                <h4 className="font-black text-on-surface text-lg mb-2">{fb.one_word}</h4>
-                                                <p className="text-sm font-medium text-on-surface-variant italic mb-6 leading-relaxed">"{fb.comments}"</p>
-                                            </div>
-
-                                            <div className="mt-auto pt-6 border-t border-outline-variant/10 flex items-center gap-3 z-10 relative">
-                                                <div className="w-8 h-8 rounded-full bg-primary-container text-primary flex items-center justify-center text-[10px] font-black shrink-0">
-                                                    {u.first_name?.[0]}{u.last_name?.[0]}
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs font-black text-on-surface uppercase tracking-wider">{u.first_name} {u.last_name}</p>
-                                                    <p className="text-[9px] text-on-surface-variant uppercase tracking-widest mt-0.5">{formatRelativeTime(fb.created_at)}</p>
-                                                </div>
-                                            </div>
-
-                                            {/* Subdued ambient background color based on rating */}
-                                            <div className={`absolute -inset-10 opacity-0 group-hover:opacity-5 transition-opacity blur-2xl ${fb.rating > 3 ? 'bg-success' : fb.rating < 3 ? 'bg-error' : 'bg-primary'}`}></div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
-                )}
 
                 {activeTab === 'data' && (
                     <div className="space-y-6">

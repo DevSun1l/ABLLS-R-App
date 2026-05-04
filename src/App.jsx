@@ -59,7 +59,7 @@ const App = () => {
         <Route path="/login" element={<LoginPage />} />
         
         <Route path="/" element={<ProtectedRoute />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route index element={<Navigate to="/login" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="student/new" element={<StudentProfilePage />} />
           <Route path="student/:id" element={<StudentProfilePage />} />

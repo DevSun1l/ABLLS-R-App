@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { computeOverallMastery } from '../utils/scoring';
+import { supabase } from '../lib/supabase';
 
 const AnalyticsPage = () => {
   const { user } = useAuth();
@@ -10,32 +11,21 @@ const AnalyticsPage = () => {
   useEffect(() => {
     const fetchStudentsAndAssessments = async () => {
       try {
-        const token = sessionStorage.getItem('ablls_token');
-        if (!token) return;
+        if (!user?.org_id) return;
         
-        // Fetch all students
-        const res = await fetch('/api/students/org', {
-           headers: { 'Authorization': `Bearer ${token}` }
-        });
+        // Fetch students and their assessments in one go using joins or multiple queries
+        const { data: loadedStudents, error } = await supabase
+          .from('students')
+          .select('*, assessments(*)')
+          .eq('org_id', user.org_id);
         
-        if (res.ok) {
-           const data = await res.json();
-           const loadedStudents = data.students || [];
-           
-           // Fetch assessments for computing mastery
-           const studentsWithScores = await Promise.all(loadedStudents.map(async (student) => {
-              try {
-                const aRes = await fetch(`/api/assessments/load?studentId=${student.id}`, {
-                   headers: { 'Authorization': `Bearer ${token}` }
-                });
-                const aData = await aRes.json();
-                student.domains = aData.assessment?.domain_data || {};
-                student.masteryPercent = computeOverallMastery(student);
-              } catch (e) {
-                student.masteryPercent = 0;
-              }
+        if (!error && loadedStudents) {
+           const studentsWithScores = loadedStudents.map((student) => {
+              const assessment = student.assessments?.[0];
+              student.domains = assessment?.domain_data || {};
+              student.masteryPercent = computeOverallMastery(student);
               return student;
-           }));
+           });
            
            setStudents(studentsWithScores);
         }
