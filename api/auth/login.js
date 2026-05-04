@@ -6,8 +6,8 @@ export default async function handler(req, res) {
   try {
      const { email, password } = req.body;
      
-     if (!process.env.VITE_JWT_SECRET) {
-        console.error("VITE_JWT_SECRET is missing from environment variables!");
+     if (!process.env.VITE_JWT_SECRET && !process.env.JWT_SECRET) {
+        console.error("JWT_SECRET is missing from environment variables!");
         return res.status(500).json({ error: "Server configuration error: Missing JWT secret" });
      }
 

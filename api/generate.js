@@ -34,7 +34,8 @@ ${selectedGoals.map((g, i) => `${i + 1}. ${g.title}\nBenefit Template: ${g.benef
 
 Generate 5 personalised SMART goals.`;
 
-    if (!process.env.VITE_GEMINI_API_KEY) {
+    const geminiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+    if (!geminiKey) {
       console.warn("No Gemini API Key found. Returning mock data.");
       const mockData = selectedGoals.map((g, i) => ({
         smartGoal: `By the end of the term, ${student.name} will achieve their ${g.title} goal with 80% accuracy across 3 sessions, as measured by teacher observation.`,
@@ -46,7 +47,7 @@ Generate 5 personalised SMART goals.`;
       return res.status(200).json(mockData);
     }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.VITE_GEMINI_API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
