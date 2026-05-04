@@ -5,8 +5,11 @@ import { ABLLS_DOMAINS } from '../data/ablls';
 import { getTopWeaknesses } from '../utils/scoring';
 import SmartGoalCard from '../components/SmartGoalCard';
 import { Layers, Download } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { exportInterventionPlanPdf } from '../utils/pdfExport';
+import { supabase } from '../lib/supabase';
+
+const DEBUG_ENDPOINT = 'http://127.0.0.1:7745/ingest/2093a418-4f5e-4810-841e-d97f9aa410f6';
 
 const InterventionPage = () => {
   const { id } = useParams();
@@ -23,6 +26,10 @@ const InterventionPage = () => {
       const selectedGoals = getMatchingGoals(targetStudent);
       const weakDomains = getTopWeaknesses(targetStudent, ABLLS_DOMAINS, 5);
 
+      // #region agent log
+      fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'pre-fix',hypothesisId:'H5',location:'src/pages/InterventionPage.jsx:31',message:'goal generation request prepared',data:{studentId:id,selectedGoalsCount:selectedGoals.length,weakDomainsCount:weakDomains.length},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -34,20 +41,28 @@ const InterventionPage = () => {
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
+        // #region agent log
+        fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'pre-fix',hypothesisId:'H5',location:'src/pages/InterventionPage.jsx:45',message:'goal generation request failed',data:{status:response.status,error:errData.error||'unknown'},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         throw new Error(errData.error || 'Goal generation failed.');
       }
 
       const generatedSmartGoals = await response.json();
+      // #region agent log
+      fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'pre-fix',hypothesisId:'H5',location:'src/pages/InterventionPage.jsx:50',message:'goal generation request succeeded',data:{goalsReturned:Array.isArray(generatedSmartGoals)?generatedSmartGoals.length:0},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       setGoals(generatedSmartGoals);
 
-      const token = sessionStorage.getItem('ablls_token');
-      if (token) {
-         fetch(`/api/assessments/save-goals`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ studentId: id, smartGoals: generatedSmartGoals })
-         });
-      }
+      // Save to Supabase
+      const { error: saveError } = await supabase
+        .from('assessments')
+        .update({
+          smart_goals: generatedSmartGoals,
+          updated_at: new Date().toISOString()
+        })
+        .eq('student_id', id);
+      
+      if (saveError) console.error("Failed to save goals:", saveError);
 
     } catch (err) {
       console.error(err);
@@ -60,43 +75,24 @@ const InterventionPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const rawData = sessionStorage.getItem('ablls_students');
-        let foundStudent = rawData ? JSON.parse(rawData).find((s) => s.id === id) : null;
-        if (!foundStudent) foundStudent = { id, name: 'Current Student' };
+        const [studentRes, assessmentRes] = await Promise.all([
+          supabase.from('students').select('*').eq('id', id).single(),
+          supabase.from('assessments').select('*').eq('student_id', id).single()
+        ]);
 
-        const token = sessionStorage.getItem('ablls_token');
-        if (token) {
-          const studentRes = await fetch(`/api/students/get?id=${id}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (studentRes.ok) {
-            const studentResult = await studentRes.json();
-            if (studentResult.student) {
-              foundStudent = {
-                ...foundStudent,
-                ...studentResult.student,
-                name: studentResult.student.name || foundStudent.name,
-              };
-            }
+        let foundStudent = studentRes.data || { id, name: 'Current Student' };
+        
+        if (assessmentRes.data) {
+          foundStudent.domains = assessmentRes.data.domain_data || {};
+          if (assessmentRes.data.smart_goals) {
+            const parsed = assessmentRes.data.smart_goals;
+            setGoals(typeof parsed === 'string' ? JSON.parse(parsed) : parsed);
+            setStudent(foundStudent);
+            setLoading(false);
+            return;
           }
-
-          const res = await fetch(`/api/assessments/load?studentId=${id}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          const result = await res.json();
-
-          if (result.assessment) {
-            foundStudent.domains = result.assessment.domain_data || {};
-            if (result.assessment.smart_goals) {
-              const parsed = result.assessment.smart_goals;
-              setGoals(typeof parsed === 'string' ? JSON.parse(parsed) : parsed);
-              setStudent(foundStudent);
-              setLoading(false);
-              return;
-            }
-          } else {
-            foundStudent.domains = {};
-          }
+        } else {
+          foundStudent.domains = {};
         }
 
         setStudent(foundStudent);
@@ -109,7 +105,7 @@ const InterventionPage = () => {
     };
 
     fetchData();
-  }, [generateGoals, id]);
+  }, [id, generateGoals]);
 
   const handleRegenerate = () => {
     if (student) generateGoals(student);

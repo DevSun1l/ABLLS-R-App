@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { v4 as uuidv4 } from 'uuid';
+import { supabase } from '../lib/supabase';
 
 const DIAGNOSES = ['ASD', 'ADHD', 'DD', 'Other'];
+const DEBUG_ENDPOINT = 'http://127.0.0.1:7745/ingest/2093a418-4f5e-4810-841e-d97f9aa410f6';
 
 const StudentProfilePage = () => {
   const { user } = useAuth();
@@ -28,18 +30,19 @@ const StudentProfilePage = () => {
     if (!isNew) {
       const fetchStudent = async () => {
         try {
-          const token = sessionStorage.getItem('ablls_token');
-          const res = await fetch(`/api/students/get?id=${id}`, {
-             headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (res.ok) {
-             const data = await res.json();
+          const { data } = await supabase
+            .from('students')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+          if (data) {
              setFormData({
-                ...data.student,
-                ageYears: data.student.age_years,
-                ageMonths: data.student.age_months,
-                diagnoses: data.student.diagnoses || [],
-                assessor: data.student.assessor || (user?.first_name ? `${user.first_name} ${user.last_name || ''}` : '')
+                ...data,
+                ageYears: data.age_years,
+                ageMonths: data.age_months,
+                diagnoses: data.diagnoses || [],
+                assessor: data.assessor || (user?.first_name ? `${user.first_name} ${user.last_name || ''}` : '')
              });
           }
         } catch (e) {
@@ -67,26 +70,43 @@ const StudentProfilePage = () => {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    let targetId = id || uuidv4();
+    let targetId = id || `stu_${uuidv4().split('-')[0]}`;
     try {
-       const token = sessionStorage.getItem('ablls_token');
-       const res = await fetch('/api/students/save', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({
-             id: targetId,
-             ...formData
-          })
-       });
-       if (res.ok) {
+       const studentPayload = {
+         id: targetId,
+         name: formData.name,
+         age_years: formData.ageYears,
+         age_months: formData.ageMonths,
+         diagnoses: formData.diagnoses,
+         notes: formData.notes,
+         created_by: user.id,
+         org_id: user.org_id,
+       };
+
+       // #region agent log
+       fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'pre-fix',hypothesisId:'H4',location:'src/pages/StudentProfilePage.jsx:90',message:'student save payload readiness',data:{hasUserId:Boolean(user?.id),hasOrgId:Boolean(user?.org_id),studentId:targetId,diagnosisCount:studentPayload.diagnoses?.length||0},timestamp:Date.now()})}).catch(()=>{});
+       // #endregion
+
+       const { error } = await supabase
+          .from('students')
+          .upsert(studentPayload);
+
+       // #region agent log
+       fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'pre-fix',hypothesisId:'H4',location:'src/pages/StudentProfilePage.jsx:97',message:'student save result',data:{ok:!error,errorCode:error?.code||null,errorMessage:error?.message||null},timestamp:Date.now()})}).catch(()=>{});
+       // #endregion
+
+       if (!error) {
           if (submitAction === 'return') {
               navigate('/dashboard');
           } else {
               navigate(`/assessment/${targetId}`);
           }
+       } else {
+         throw error;
        }
     } catch(err) {
        console.error("Failed to save student", err);
+       alert("Error saving student profile: " + err.message);
     }
   };
 

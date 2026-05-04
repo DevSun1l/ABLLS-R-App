@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { useSearch } from '../context/SearchContext';
 import FeedbackModal from './FeedbackModal';
 import { formatDateTime, formatRelativeTime } from '../utils/time';
+import { supabase } from '../lib/supabase';
+
+const DEBUG_ENDPOINT = 'http://127.0.0.1:7745/ingest/2093a418-4f5e-4810-841e-d97f9aa410f6';
 
 const ProtectedRoute = ({ requiredRole }) => {
   const { user, logout, refreshUser, login } = useAuth();
@@ -21,18 +24,22 @@ const ProtectedRoute = ({ requiredRole }) => {
   const [, setTick] = useState(0);
 
   useEffect(() => {
+    // #region agent log
+    fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'pre-fix',hypothesisId:'H1',location:'src/components/ProtectedRoute.jsx:29',message:'protected route render state',data:{path:location.pathname,requiredRole:requiredRole||null,userRole:user?.role||null,userIdPresent:Boolean(user?.id)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
     const fetchNotifications = async () => {
       try {
-        const token = sessionStorage.getItem('ablls_token');
-        if (!token) return;
+        if (!user?.id) return;
 
-        const res = await fetch('/api/notifications/list', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
 
-        if (res.ok) {
-          const data = await res.json();
-          setNotifications(data.notifications || []);
+        if (!error) {
+          setNotifications(data || []);
         }
       } catch (e) {
         console.error('Notification fetch failed', e);
@@ -40,7 +47,7 @@ const ProtectedRoute = ({ requiredRole }) => {
     };
 
     fetchNotifications();
-    const poll = setInterval(fetchNotifications, 5000);
+    const poll = setInterval(fetchNotifications, 10000);
     const clock = setInterval(() => setTick((value) => value + 1), 1000);
 
     return () => {
@@ -57,21 +64,19 @@ const ProtectedRoute = ({ requiredRole }) => {
     setAdminSwitchError('');
 
     try {
-      const token = sessionStorage.getItem('ablls_token');
-      if (token && !notification.read_at) {
-        await fetch('/api/notifications/read', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ notificationId: notification.id }),
-        });
-        setNotifications((current) =>
-          current.map((item) =>
-            item.id === notification.id ? { ...item, read_at: new Date().toISOString() } : item
-          )
-        );
+      if (!notification.read_at) {
+        const { error } = await supabase
+          .from('notifications')
+          .update({ read_at: new Date().toISOString() })
+          .eq('id', notification.id);
+        
+        if (!error) {
+          setNotifications((current) =>
+            current.map((item) =>
+              item.id === notification.id ? { ...item, read_at: new Date().toISOString() } : item
+            )
+          );
+        }
       }
 
       if (notification.type === 'admin_promotion') {
