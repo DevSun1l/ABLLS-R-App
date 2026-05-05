@@ -9,7 +9,6 @@ import { useAuth } from '../hooks/useAuth';
 import { exportInterventionPlanPdf } from '../utils/pdfExport';
 import { supabase } from '../lib/supabase';
 
-const DEBUG_ENDPOINT = 'http://127.0.0.1:7745/ingest/2093a418-4f5e-4810-841e-d97f9aa410f6';
 const GOAL_ENDPOINTS = ['/api/generate', '/.netlify/functions/generate'];
 const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
 
@@ -109,9 +108,6 @@ const InterventionPage = () => {
       const selectedGoals = getMatchingGoals(targetStudent);
       const weakDomains = getTopWeaknesses(targetStudent, ABLLS_DOMAINS, 5);
 
-      // #region agent log
-      fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'pre-fix',hypothesisId:'H5',location:'src/pages/InterventionPage.jsx:31',message:'goal generation request prepared',data:{studentId:id,selectedGoalsCount:selectedGoals.length,weakDomainsCount:weakDomains.length},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
 
       let generatedSmartGoals = null;
       let lastError = null;
@@ -133,9 +129,6 @@ const InterventionPage = () => {
 
         const errData = await response.json().catch(() => ({}));
         lastError = errData.error || `HTTP ${response.status}`;
-        // #region agent log
-        fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'post-fix',hypothesisId:'H5',location:'src/pages/InterventionPage.jsx:63',message:'goal generation endpoint failed',data:{endpoint,status:response.status,error:lastError},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
       }
 
       if (!Array.isArray(generatedSmartGoals) || generatedSmartGoals.length === 0) {
@@ -147,27 +140,15 @@ const InterventionPage = () => {
           });
           if (Array.isArray(geminiGoals) && geminiGoals.length > 0) {
             generatedSmartGoals = geminiGoals;
-            // #region agent log
-            fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'post-fix',hypothesisId:'H5',location:'src/pages/InterventionPage.jsx:118',message:'gemini client-side generation succeeded',data:{goalsReturned:geminiGoals.length},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
           }
         } catch (geminiClientError) {
-          // #region agent log
-          fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'post-fix',hypothesisId:'H5',location:'src/pages/InterventionPage.jsx:124',message:'gemini client-side generation failed',data:{error:geminiClientError?.message||'unknown'},timestamp:Date.now()})}).catch(()=>{});
-          // #endregion
         }
       }
 
       if (!Array.isArray(generatedSmartGoals) || generatedSmartGoals.length === 0) {
         generatedSmartGoals = buildFallbackGoals(targetStudent, selectedGoals);
-        // #region agent log
-        fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'post-fix',hypothesisId:'H5',location:'src/pages/InterventionPage.jsx:132',message:'using local fallback goals',data:{reason:lastError||'no_endpoint_success',goalsReturned:generatedSmartGoals.length},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
       }
 
-      // #region agent log
-      fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'post-fix',hypothesisId:'H5',location:'src/pages/InterventionPage.jsx:77',message:'goal generation result ready',data:{goalsReturned:Array.isArray(generatedSmartGoals)?generatedSmartGoals.length:0},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setGoals(generatedSmartGoals);
 
       // Save to Supabase

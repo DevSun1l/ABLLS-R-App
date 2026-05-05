@@ -4,7 +4,6 @@ import { USERS as LEGACY_USERS } from '../data/users';
 import { AuthContext } from './AuthContextValue';
 
 const LEGACY_SESSION_KEY = 'cognify_legacy_user_id';
-const DEBUG_ENDPOINT = 'http://127.0.0.1:7745/ingest/2093a418-4f5e-4810-841e-d97f9aa410f6';
 
 const isInvalidCredentialsError = (error) => {
   const message = (error?.message || '').toLowerCase();
@@ -147,7 +146,6 @@ export const AuthProvider = ({ children }) => {
       if (sessionError) throw sessionError;
 
       // #region agent log
-      fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'pre-fix',hypothesisId:'H1',location:'src/context/AuthContext.jsx:91',message:'refreshUser session state',data:{hasSession:Boolean(session?.user),hasLegacyKey:Boolean(localStorage.getItem(LEGACY_SESSION_KEY))},timestamp:Date.now()})}).catch(()=>{});
       // #endregion
 
       if (session?.user) {
@@ -229,7 +227,6 @@ export const AuthProvider = ({ children }) => {
     );
 
     // #region agent log
-    fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'pre-fix',hypothesisId:'H2',location:'src/context/AuthContext.jsx:193',message:'login attempt routing',data:{hasLegacyMatch:Boolean(legacyUser),emailDomain:normalizedEmail.split('@')[1]||'none'},timestamp:Date.now()})}).catch(()=>{});
     // #endregion
 
     if (legacyUser) {
@@ -257,7 +254,6 @@ export const AuthProvider = ({ children }) => {
     });
 
     // #region agent log
-    fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'pre-fix',hypothesisId:'H3',location:'src/context/AuthContext.jsx:219',message:'supabase signIn result',data:{success:Boolean(data?.user),errorCode:error?.code||null,errorMessage:error?.message||null},timestamp:Date.now()})}).catch(()=>{});
     // #endregion
 
     if (error) {

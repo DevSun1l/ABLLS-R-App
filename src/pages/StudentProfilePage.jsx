@@ -5,7 +5,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../lib/supabase';
 
 const DIAGNOSES = ['ASD', 'ADHD', 'DD', 'Other'];
-const DEBUG_ENDPOINT = 'http://127.0.0.1:7745/ingest/2093a418-4f5e-4810-841e-d97f9aa410f6';
 
 const StudentProfilePage = () => {
   const { user } = useAuth();
@@ -91,17 +90,11 @@ const StudentProfilePage = () => {
          org_id: user.org_id,
        };
 
-       // #region agent log
-       fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'pre-fix',hypothesisId:'H4',location:'src/pages/StudentProfilePage.jsx:90',message:'student save payload readiness',data:{hasUserId:Boolean(user?.id),hasOrgId:Boolean(user?.org_id),studentId:targetId,diagnosisCount:studentPayload.diagnoses?.length||0},timestamp:Date.now()})}).catch(()=>{});
-       // #endregion
 
        const { error } = await supabase
           .from('students')
           .upsert(studentPayload, { onConflict: 'id' });
 
-       // #region agent log
-       fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'pre-fix',hypothesisId:'H4',location:'src/pages/StudentProfilePage.jsx:97',message:'student save result',data:{ok:!error,errorCode:error?.code||null,errorMessage:error?.message||null},timestamp:Date.now()})}).catch(()=>{});
-       // #endregion
 
        if (!error) {
           if (submitAction === 'return') {

@@ -16,7 +16,6 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminRoute from './components/AdminRoute';
 
 const APP_NAME = 'Cognify Care';
-const DEBUG_ENDPOINT = 'http://127.0.0.1:7745/ingest/2093a418-4f5e-4810-841e-d97f9aa410f6';
 
 const getPageTitle = (pathname) => {
   const routeTitles = [
@@ -43,11 +42,6 @@ const getPageTitle = (pathname) => {
 const App = () => {
   const location = useLocation();
 
-  React.useEffect(() => {
-    // #region agent log
-    fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'pre-fix',hypothesisId:'H0',location:'src/App.jsx:42',message:'app mounted logger health-check',data:{path:window.location.pathname},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-  }, []);
 
   React.useEffect(() => {
     document.title = getPageTitle(location.pathname);

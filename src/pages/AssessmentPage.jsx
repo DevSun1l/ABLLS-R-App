@@ -6,7 +6,6 @@ import ScoreButton from '../components/ScoreButton';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 
-const DEBUG_ENDPOINT = 'http://127.0.0.1:7745/ingest/2093a418-4f5e-4810-841e-d97f9aa410f6';
 const LEGACY_ASSESSOR_BY_EMAIL = {
   'admin@cognifycareteam.com': 'usr_admin',
   'mnm@cognifycareteam.com': 'usr_specialist',
@@ -91,9 +90,7 @@ const AssessmentPage = () => {
         domain_data: updatedDomainData,
       };
 
-      // #region agent log
-      fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'post-fix',hypothesisId:'H6',location:'src/pages/AssessmentPage.jsx:79',message:'assessment autosave mode',data:{hasExisting:Boolean(existingAssessment?.id),hasUserId:Boolean(user?.id)},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
+      // ...existing code...
 
       let saveError = null;
       if (existingAssessment?.id) {
@@ -114,9 +111,7 @@ const AssessmentPage = () => {
         saveError = error;
       }
 
-      // #region agent log
-      fetch(DEBUG_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'016185'},body:JSON.stringify({sessionId:'016185',runId:'post-fix',hypothesisId:'H6',location:'src/pages/AssessmentPage.jsx:102',message:'assessment autosave result',data:{ok:!saveError,errorCode:saveError?.code||null,errorMessage:saveError?.message||null},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
+      // ...existing code...
 
       if (saveError) throw saveError;
     } catch (e) {
